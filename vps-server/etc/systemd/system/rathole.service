@@ -1,0 +1,14 @@
+[Unit]
+Description=Rathole Server Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/rathole --server /etc/rathole/server.toml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

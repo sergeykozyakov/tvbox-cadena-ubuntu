@@ -1,0 +1,19 @@
+[server]
+bind_addr = "0.0.0.0:X"
+heartbeat_interval = 30
+
+[server.transport]
+type = "tcp"
+
+[server.transport.tcp]
+keepalive_secs = 20
+keepalive_interval = 8
+
+[server.services.ssh]
+bind_addr = "0.0.0.0:2200"
+token = "XXXXXXXXXXXXXXXXX"
+
+[server.services.rdp]
+bind_addr = "0.0.0.0:33900"
+token = "XXXXXXXXXXXXXXXXX"
+nodelay = true
