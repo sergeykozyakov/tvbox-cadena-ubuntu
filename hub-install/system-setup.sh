@@ -39,9 +39,6 @@ generate_uuid() {
     fi
 }
 
-# ==========================================
-# ДЕЙСТВИЯ ДО ПЕРВОЙ ПЕРЕЗАГРУЗКИ
-# ==========================================
 if [[ ! -f "$STAGE_FILE" ]]; then
     clear
     echo "========================================================================="
@@ -53,12 +50,11 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
     if ! command -v sudo >/dev/null 2>&1; then
         echo ""
-        echo "Утилита sudo пока отсутствует в системе. Выполняется настрока через root..." 1>&2
+        echo "Утилита sudo отсутствует в системе. Выполняется ее установка через root..." 1>&2
 
         CURRENT_USER="${USER:-$(id -un)}"
 
         if su -c "apt update && apt install sudo -y && usermod -aG sudo $CURRENT_USER"; then
-            echo ""
             echo "Утилита sudo успешно установлена!"
             echo ""
             echo "Установка нового более сложного пароля для root..."
@@ -67,12 +63,17 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
             echo ""
             echo "Пожалуйста, запустите этот скрипт еще раз от своего пользователя: sudo $0"
-            echo "Возможно, потребуется повторное открытие Терминала для применения изменений!"
+            echo "Вам потребуется повторное открытие Терминала для применения изменений!"
             exit 0
         else
-            echo "ОШИБКА! Не удалось настроить sudo. Скрипт завершен" 1>&2
+            echo "ОШИБКА! Не удалось установить sudo. Скрипт завершен" 1>&2
             exit 1
         fi
+    fi
+
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "Пожалуйста, запустите скрипт с правами sudo: sudo $0"
+        exit 1
     fi
 
     echo "Настройка автовхода в систему от имени текущего пользователя..."
@@ -86,23 +87,23 @@ if [[ ! -f "$STAGE_FILE" ]]; then
             echo "Автовход в систему от имени текущего пользователя уже настроен!"
         else
             if ! grep -q "^[[:space:]]*\[daemon\]" "$GDM_CONFIG_FILE"; then
-                sudo sed -i '1i [daemon]' "$GDM_CONFIG_FILE"
+                sed -i '1i [daemon]' "$GDM_CONFIG_FILE"
             fi
 
             if grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLoginEnable" "$GDM_CONFIG_FILE"; then
-                sudo sed -i -E 's/^#?\s*AutomaticLoginEnable\s*=\s*.*/AutomaticLoginEnable = true/' "$GDM_CONFIG_FILE"
+                sed -i -E 's/^#?\s*AutomaticLoginEnable\s*=\s*.*/AutomaticLoginEnable = true/' "$GDM_CONFIG_FILE"
             fi
 
             if grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLogin[[:space:]]*=" "$GDM_CONFIG_FILE"; then
-                sudo sed -i -E "s/^#?\s*AutomaticLogin\s*=\s*.*/AutomaticLogin = $SUDO_USER/" "$GDM_CONFIG_FILE"
+                sed -i -E "s/^#?\s*AutomaticLogin\s*=\s*.*/AutomaticLogin = $SUDO_USER/" "$GDM_CONFIG_FILE"
             fi
 
             if ! grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLoginEnable" "$GDM_CONFIG_FILE"; then
-                sudo sed -i '/^[[:space:]]*\[daemon\]/a AutomaticLoginEnable = true' "$GDM_CONFIG_FILE"
+                sed -i '/^[[:space:]]*\[daemon\]/a AutomaticLoginEnable = true' "$GDM_CONFIG_FILE"
             fi
 
             if ! grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLogin[[:space:]]*=" "$GDM_CONFIG_FILE"; then
-                sudo sed -i "/^[[:space:]]*AutomaticLoginEnable/a AutomaticLogin = $SUDO_USER" "$GDM_CONFIG_FILE"
+                sed -i "/^[[:space:]]*AutomaticLoginEnable/a AutomaticLogin = $SUDO_USER" "$GDM_CONFIG_FILE"
             fi
         fi
     else
@@ -115,10 +116,10 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     ENV_FILE="/etc/environment"
 
     if ! grep -q 'LANG="ru_RU.UTF-8"' "$ENV_FILE"; then
-        sudo apt install -y language-pack-ru >/dev/null
-        sudo locale-gen ru_RU.UTF-8 >/dev/null
-        sudo update-locale LANG=ru_RU.UTF-8 >/dev/null
-        echo 'export LANG="ru_RU.UTF-8"' | sudo tee -a "$ENV_FILE" >/dev/null
+        apt install -y language-pack-ru >/dev/null
+        locale-gen ru_RU.UTF-8 >/dev/null
+        update-locale LANG=ru_RU.UTF-8 >/dev/null
+        echo 'export LANG="ru_RU.UTF-8"' | tee -a "$ENV_FILE" >/dev/null
     else
         echo "Русский язык в консоли уже настроен!"
     fi
@@ -186,8 +187,8 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     if [[ "$CURRENT_HOSTNAME" = "$NEW_HOSTNAME" ]]; then
         echo "Имя компьютера уже изменено!"
     else
-        sudo sed -i "s/\b${CURRENT_HOSTNAME}\b/${NEW_HOSTNAME}/g" /etc/hosts
-        sudo hostnamectl set-hostname "$NEW_HOSTNAME"
+        sed -i "s/\b${CURRENT_HOSTNAME}\b/${NEW_HOSTNAME}/g" /etc/hosts
+        hostnamectl set-hostname "$NEW_HOSTNAME"
     fi
 
     echo "Установка часового пояса..."
@@ -197,7 +198,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     if [[ "$CURRENT_TIMEZONE" = "$TIMEZONE" ]]; then
         echo "Часовой пояс уже установлен!"
     else
-        sudo timedatectl set-timezone "$TIMEZONE"
+        timedatectl set-timezone "$TIMEZONE"
     fi
 
     echo  "Установка русской раскладки клавиатуры..."
@@ -214,6 +215,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     read -p ""
 
     if type -p gnome-language-selector >/dev/null; then
+        sudo -u "${SUDO_USER:-$USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus" \
         gnome-language-selector &
 
         read -p "Когда полностью завершите настройку русского языка в графическом окне, нажмите [Enter] для перезагрузки..."
@@ -232,13 +234,15 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     echo "------------------------------------------------"
 
     sleep 3
-    sudo reboot
+    reboot
     exit 0
 fi
 
-# ==========================================
-# ДЕЙСТВИЯ ПОСЛЕ ПЕРВОЙ ПЕРЕЗАГРУЗКИ
-# ==========================================
+if [[ "$EUID" -ne 0 ]]; then
+    echo "Пожалуйста, запустите скрипт с правами sudo: sudo $0"
+    exit 1
+fi
+
 source "$STAGE_FILE"
 
 if [[ "$STAGE" == "2" ]]; then
@@ -252,7 +256,7 @@ if [[ "$STAGE" == "2" ]]; then
 
     echo "Обновление списка пакетов..."
 
-    sudo apt update >/dev/null || true
+    apt update >/dev/null || true
 
     echo ""
     echo "Создание файла подкачки..."
@@ -260,16 +264,16 @@ if [[ "$STAGE" == "2" ]]; then
     SWAP_FILE="/swapfile"
 
     if [[ ! -f "$SWAP_FILE" ]]; then
-        if ! sudo fallocate -l "$SWAP_SIZE" "$SWAP_FILE" 2>/dev/null; then
-            echo "fallocate не поддерживается файловой системой. Используется dd (это займет больше времени)..."
+        if ! fallocate -l "$SWAP_SIZE" "$SWAP_FILE" 2>/dev/null; then
+            echo "fallocate не поддерживается файловой системой. Используется dd..."
 
             RAW_SIZE=$(echo "$SWAP_SIZE" | sed 's/[GgMm]//g')
             COUNT_MB=$(( RAW_SIZE * 1024 ))
-            sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$COUNT_MB status=progress
+            dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$COUNT_MB status=progress
         fi
 
-        sudo chmod 600 "$SWAP_FILE"
-        sudo mkswap "$SWAP_FILE" >/dev/null
+        chmod 600 "$SWAP_FILE"
+        mkswap "$SWAP_FILE" >/dev/null
     else
         echo "Файл подкачки уже существует!"
     fi
@@ -278,65 +282,65 @@ if [[ "$STAGE" == "2" ]]; then
 
     FSTAB_CONFIG_FILE="/etc/fstab"
 
-    if ! sudo grep -q "$SWAP_FILE" "$FSTAB_CONFIG_FILE"; then
-        echo "$SWAP_FILE none swap sw 0 0" | sudo tee -a "$FSTAB_CONFIG_FILE" >/dev/null
+    if ! grep -q "$SWAP_FILE" "$FSTAB_CONFIG_FILE"; then
+        echo "$SWAP_FILE none swap sw 0 0" | tee -a "$FSTAB_CONFIG_FILE" >/dev/null
     else
         echo "Файл подкачки уже добавлен в файловую систему!"
     fi
 
     echo "Монтирование файла подкачки..."
 
-    if sudo grep -q "$SWAP_FILE" /proc/swaps; then
+    if grep -q "$SWAP_FILE" /proc/swaps; then
         echo "Файл подкачки уже смонтирован!"
     else
-        sudo swapon "$SWAP_FILE"
+        swapon "$SWAP_FILE"
     fi
 
     echo "Настройка стратегии использования файла подкачки..."
 
     SYSCTL_CONFIG_FILE="/etc/sysctl.conf"
 
-    if sudo grep -q "vm.swappiness" "$SYSCTL_CONFIG_FILE"; then
-        if sudo grep -E -q "^[[:space:]]*vm\.swappiness[[:space:]]*=[[:space:]]*15" "$SYSCTL_CONFIG_FILE"; then
+    if grep -q "vm.swappiness" "$SYSCTL_CONFIG_FILE"; then
+        if grep -E -q "^[[:space:]]*vm\.swappiness[[:space:]]*=[[:space:]]*15" "$SYSCTL_CONFIG_FILE"; then
             echo "Стратегия использования файла подкачки уже настроена!"
         else
-            sudo sed -i -E 's/^[[:space:]]*#*vm.swappiness.*/vm.swappiness=15/' "$SYSCTL_CONFIG_FILE"
+            sed -i -E 's/^[[:space:]]*#*vm.swappiness.*/vm.swappiness=15/' "$SYSCTL_CONFIG_FILE"
         fi
     else
-        echo "vm.swappiness=15" | sudo tee -a "$SYSCTL_CONFIG_FILE" >/dev/null
+        echo "vm.swappiness=15" | tee -a "$SYSCTL_CONFIG_FILE" >/dev/null
     fi
 
     echo "Применение стратегии использования файла подкачки..."
 
-    sudo sysctl -p >/dev/null
+    sysctl -p >/dev/null
 
     echo ""
     echo "Установка необходимых пакетов..."
     echo ""
 
-    sudo DEBIAN_FRONTEND=noninteractive apt install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop logrotate cron
+    DEBIAN_FRONTEND=noninteractive apt install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop logrotate cron
 
     echo "Удаление лишних зависимостей и очистка кэша пакетов..."
 
-    sudo apt autoremove -y >/dev/null
-    sudo apt clean >/dev/null
+    apt autoremove -y >/dev/null
+    apt clean >/dev/null
 
     echo "Отключение устаревших менеджеров сетей..."
 
-    sudo systemctl stop systemd-networkd systemd-networkd-wait-online wpa_supplicant >/dev/null 2>&1
-    sudo systemctl disable systemd-networkd systemd-networkd-wait-online wpa_supplicant >/dev/null 2>&1
-    sudo systemctl mask systemd-networkd systemd-networkd-wait-online >/dev/null 2>&1
+    systemctl stop systemd-networkd systemd-networkd-wait-online wpa_supplicant >/dev/null 2>&1
+    systemctl disable systemd-networkd systemd-networkd-wait-online wpa_supplicant >/dev/null 2>&1
+    systemctl mask systemd-networkd systemd-networkd-wait-online >/dev/null 2>&1
 
     echo "Очистка конфликтующих конфигурационных файлов устаревших менеджеров сетей..."
    
-    sudo rm -f /run/systemd/network/* >/dev/null 2>&1
-    sudo rm -f /etc/systemd/network/* >/dev/null 2>&1
-    sudo rm -rf /etc/NetworkManager/system-connections/* >/dev/null 2>&1
+    rm -f /run/systemd/network/* >/dev/null 2>&1
+    rm -f /etc/systemd/network/* >/dev/null 2>&1
+    rm -rf /etc/NetworkManager/system-connections/* >/dev/null 2>&1
 
     echo "Инициализация служб DHCP и точки доступа..."
 
-    sudo systemctl mask --now hostapd >/dev/null
-    sudo systemctl disable --now dnsmasq >/dev/null
+    systemctl mask --now hostapd >/dev/null
+    systemctl disable --now dnsmasq >/dev/null
 
     echo "Генерация UUID-значений для сетевых интерфейсов..."
 
@@ -346,11 +350,11 @@ if [[ "$STAGE" == "2" ]]; then
 
     echo "Настройка проводной сети (eth0 -> Wired)..."
 
-    NETPLAN_ETH_FILE=$(sudo grep -rl "eth0" /etc/netplan 2>/dev/null | head -n 1 || true)
+    NETPLAN_ETH_FILE=$(grep -rl "eth0" /etc/netplan 2>/dev/null | head -n 1 || true)
     NETPLAN_ETH_UUID="$UUID_ETH"
     NETPLAN_ETH_NEED_UPDATE=true
 
-    if [[ -f "$NETPLAN_ETH_FILE" ]] && sudo grep -q "$RATHOLE_HOST" "$NETPLAN_ETH_FILE" 2>/dev/null; then
+    if [[ -f "$NETPLAN_ETH_FILE" ]] && grep -q "$RATHOLE_HOST" "$NETPLAN_ETH_FILE" 2>/dev/null; then
         echo "Файл настройки проводной сети (eth0 -> Wired) уже обновлен!"
 
         NETPLAN_ETH_NEED_UPDATE=false
@@ -372,7 +376,7 @@ if [[ "$STAGE" == "2" ]]; then
     if [[ "$NETPLAN_ETH_NEED_UPDATE" == "true" ]]; then
         echo "Запись конфигурации в файл настройки проводной сети (eth0 -> Wired)..."
 
-        sudo tee "$NETPLAN_ETH_FILE" >/dev/null <<EOF
+        tee "$NETPLAN_ETH_FILE" >/dev/null <<EOF
 network:
   version: 2
   ethernets:
@@ -399,18 +403,16 @@ network:
           proxy._: ""
 EOF
 
-        sudo chown root:root "$NETPLAN_ETH_FILE" >/dev/null
-        sudo chmod 600 "$NETPLAN_ETH_FILE" >/dev/null
-
+        chmod 600 "$NETPLAN_ETH_FILE" >/dev/null
     fi
 
     echo "Настройка клиентского Wi-Fi (wlan0 -> Client)..."
 
-    NETPLAN_CLIENT_FILE=$(sudo grep -rl "wlan0" /etc/netplan 2>/dev/null | head -n 1 || true)
+    NETPLAN_CLIENT_FILE=$(grep -rl "wlan0" /etc/netplan 2>/dev/null | head -n 1 || true)
     NETPLAN_CLIENT_UUID="$UUID_CLIENT"
     NETPLAN_CLIENT_NEED_UPDATE=true
 
-    if [[ -f "$NETPLAN_CLIENT_FILE" ]] && sudo grep -q "$RATHOLE_HOST" "$NETPLAN_CLIENT_FILE" 2>/dev/null; then
+    if [[ -f "$NETPLAN_CLIENT_FILE" ]] && grep -q "$RATHOLE_HOST" "$NETPLAN_CLIENT_FILE" 2>/dev/null; then
         echo "Файл настройки клиентского Wi-Fi (wlan0 -> Client) уже обновлен!"
 
         NETPLAN_CLIENT_NEED_UPDATE=false
@@ -432,7 +434,7 @@ EOF
     if [[ "$NETPLAN_CLIENT_NEED_UPDATE" == "true" ]]; then
         echo "Запись конфигурации в файл настройки клиентского Wi-Fi (wlan0 -> Client)..."
 
-        sudo tee "$NETPLAN_CLIENT_FILE" >/dev/null <<EOF
+        tee "$NETPLAN_CLIENT_FILE" >/dev/null <<EOF
 network:
   version: 2
   wifis:
@@ -464,18 +466,16 @@ network:
         name: "Client"
 EOF
 
-        sudo chown root:root "$NETPLAN_CLIENT_FILE" >/dev/null
-        sudo chmod 600 "$NETPLAN_CLIENT_FILE" >/dev/null
-
+        chmod 600 "$NETPLAN_CLIENT_FILE" >/dev/null
     fi
 
     echo "Настройка точки доступа (wlan1 -> Hotspot)..."
 
-    NETPLAN_HOTSPOT_FILE=$(sudo grep -rl "wlan1" /etc/netplan 2>/dev/null | head -n 1 || true)
+    NETPLAN_HOTSPOT_FILE=$(grep -rl "wlan1" /etc/netplan 2>/dev/null | head -n 1 || true)
     NETPLAN_HOTSPOT_UUID="$UUID_HOTSPOT"
     NETPLAN_HOTSPOT_NEED_UPDATE=true
 
-    if [[ -f "$NETPLAN_HOTSPOT_FILE" ]] && sudo grep -q "$HOTSPOT_SSID" "$NETPLAN_HOTSPOT_FILE" 2>/dev/null; then
+    if [[ -f "$NETPLAN_HOTSPOT_FILE" ]] && grep -q "$HOTSPOT_SSID" "$NETPLAN_HOTSPOT_FILE" 2>/dev/null; then
         echo "Файл настройки точки доступа (wlan1 -> Hotspot) уже обновлен!"
 
         NETPLAN_HOTSPOT_NEED_UPDATE=false
@@ -497,7 +497,7 @@ EOF
     if [[ "$NETPLAN_HOTSPOT_NEED_UPDATE" == "true" ]]; then
         echo "Запись конфигурации в файл настройки точки доступа (wlan1 -> Hotspot)..."
 
-        sudo tee "$NETPLAN_HOTSPOT_FILE" >/dev/null <<EOF
+        tee "$NETPLAN_HOTSPOT_FILE" >/dev/null <<EOF
 network:
   version: 2
   wifis:
@@ -527,52 +527,51 @@ network:
         name: "Hotspot"
 EOF
 
-        sudo chown root:root "$NETPLAN_HOTSPOT_FILE" >/dev/null
-        sudo chmod 600 "$NETPLAN_HOTSPOT_FILE" >/dev/null
+        chmod 600 "$NETPLAN_HOTSPOT_FILE" >/dev/null
     fi
 
     echo "Запуск службы NetworkManager..."
 
-    sudo systemctl unmask NetworkManager >/dev/null 2>&1
-    sudo systemctl enable NetworkManager >/dev/null 2>&1
-    sudo systemctl start NetworkManager >/dev/null 2>&1
+    systemctl unmask NetworkManager >/dev/null 2>&1
+    systemctl enable NetworkManager >/dev/null 2>&1
+    systemctl start NetworkManager >/dev/null 2>&1
 
     echo "Генерация и применение конфигурации Netplan..."
 
-    sudo netplan generate >/dev/null
-    sudo netplan apply >/dev/null
+    netplan generate >/dev/null
+    netplan apply >/dev/null
 
     echo "Настройка маршрутизации трафика в ядре Linux..."
 
     SYSCTL_CONFIG_IP_FORWARD_FILE="/etc/sysctl.d/99-ipforward.conf"
 
     if [[ ! -f "$SYSCTL_CONFIG_IP_FORWARD_FILE" ]]; then
-        echo "net.ipv4.ip_forward=1" | sudo tee "$SYSCTL_CONFIG_IP_FORWARD_FILE" >/dev/null
+        echo "net.ipv4.ip_forward=1" | tee "$SYSCTL_CONFIG_IP_FORWARD_FILE" >/dev/null
     else
         echo "Маршрутизация трафика в ядре Linux уже настроена!"
     fi
 
     echo "Применение настроек маршрутизации трафика в ядре Linux..."
 
-    sudo sysctl -p "$SYSCTL_CONFIG_IP_FORWARD_FILE" >/dev/null
+    sysctl -p "$SYSCTL_CONFIG_IP_FORWARD_FILE" >/dev/null
 
     echo "Настройка маршрутизации трафика в NetworkManager..."
 
     NETWORK_MANAGER_CONFIG_FILE="/etc/NetworkManager/NetworkManager.conf"
 
-    if sudo grep -q "ip-forwarding" "$NETWORK_MANAGER_CONFIG_FILE"; then
-        if sudo grep -E -q "^[[:space:]]*ip-forwarding[[:space:]]*=[[:space:]]*true" "$NETWORK_MANAGER_CONFIG_FILE"; then
+    if grep -q "ip-forwarding" "$NETWORK_MANAGER_CONFIG_FILE"; then
+        if grep -E -q "^[[:space:]]*ip-forwarding[[:space:]]*=[[:space:]]*true" "$NETWORK_MANAGER_CONFIG_FILE"; then
             echo "Маршрутизация трафика в NetworkManager уже настроена!"
         else
-            sudo sed -i -E 's/^[[:space:]]*#*ip-forwarding.*/ip-forwarding=true/' "$NETWORK_MANAGER_CONFIG_FILE"
+            sed -i -E 's/^[[:space:]]*#*ip-forwarding.*/ip-forwarding=true/' "$NETWORK_MANAGER_CONFIG_FILE"
         fi
     else
-        sudo sed -i '/^\[main\]/a ip-forwarding=true' "$NETWORK_MANAGER_CONFIG_FILE"
+        sed -i '/^\[main\]/a ip-forwarding=true' "$NETWORK_MANAGER_CONFIG_FILE"
     fi
 
     echo "Применение настроек маршрутизации трафика в NetworkManager..."
 
-    sudo systemctl restart NetworkManager >/dev/null
+    systemctl restart NetworkManager >/dev/null
 
     echo ""
     echo "Загрузка дистрибутива Happ Proxy..."
@@ -581,7 +580,7 @@ EOF
     HAPP_URL="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/$HAPP_BIN"
 
     if [[ ! -f "$HAPP_BIN" ]]; then
-        sudo curl -L "$HAPP_URL" -o "$HAPP_BIN"
+        curl -L "$HAPP_URL" -o "$HAPP_BIN"
     else
         echo "Дистрибутив Happ Proxy уже загружен!"
     fi
@@ -595,11 +594,11 @@ EOF
     else
         echo "Распаковка пакета Happ Proxy..."
 
-        sudo dpkg -i "$HAPP_BIN" >/dev/null || true
+        dpkg -i "$HAPP_BIN" >/dev/null || true
 
         echo "Установка недостающих зависимостей и завершение установки Happ Proxy..."
 
-        sudo apt install -f -y >/dev/null
+        apt install -f -y >/dev/null
     fi
 
     echo ""
@@ -618,13 +617,13 @@ EOF
     if [[ ! -f "$SYSTEM_BIN_DIR/$RATHOLE_BIN" ]]; then
         if [[ ! -f "$RATHOLE_BIN" ]]; then
             if [[ ! -f "$RATHOLE_ZIP" ]]; then
-                sudo curl -L "$RATHOLE_URL" -o "$RATHOLE_ZIP"
+                curl -L "$RATHOLE_URL" -o "$RATHOLE_ZIP"
             else
                 echo "Zip-архив Rathole уже существует! Распаковка..."
             fi
 
-            sudo unzip "$RATHOLE_ZIP" >/dev/null
-            sudo chmod +x "$RATHOLE_BIN"
+            unzip "$RATHOLE_ZIP" >/dev/null
+            chmod +x "$RATHOLE_BIN"
 
             echo "Исполняемый файл Rathole распакован из zip-архива!"
         else
@@ -633,8 +632,8 @@ EOF
 
         echo "Установка исполняемого файла Rathole..."
 
-        sudo cp "$RATHOLE_BIN" "$SYSTEM_BIN_DIR/"
-        sudo rm -f "$RATHOLE_BIN"
+        cp "$RATHOLE_BIN" "$SYSTEM_BIN_DIR/"
+        rm -f "$RATHOLE_BIN"
     else
         echo "Исполняемый файл Rathole уже установлен!"
     fi
@@ -646,10 +645,10 @@ EOF
     RATHOLE_CONFIG_FILE="client.toml"
     RATHOLE_SERVICE="rathole"
 
-    sudo mkdir -p "$RATHOLE_CONFIG_DIR"
+    mkdir -p "$RATHOLE_CONFIG_DIR"
 
     if [[ ! -f "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" ]]; then
-        sudo tee "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null <<EOF
+        tee "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null <<EOF
 [client]
 remote_addr = "${RATHOLE_HOST}:${RATHOLE_PORT}"
 heartbeat_timeout = 40
@@ -672,8 +671,7 @@ token = "${RATHOLE_TOKEN}"
 nodelay = true
 EOF
 
-        sudo chown root:root "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null
-        sudo chmod 644 "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null
+        chmod 644 "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null
     else
         echo "Файл клиентской конфигурации Rathole уже существует!"
     fi
@@ -683,7 +681,7 @@ EOF
     SYSTEM_SERVICES_DIR="/etc/systemd/system"
 
     if [[ ! -f "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" ]]; then
-        sudo tee "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null <<EOF
+        tee "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null <<EOF
 [Unit]
 Description=Rathole Client Service
 After=network-online.target
@@ -700,8 +698,7 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-        sudo chown root:root "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null
-        sudo chmod 644 "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null
+        chmod 644 "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null
     else
         echo "Системная служба Rathole уже существует!"
     fi
@@ -711,8 +708,8 @@ EOF
     if systemctl is-active --quiet "$RATHOLE_SERVICE"; then
         echo "Системная служба Rathole уже запущена!"
     else
-        sudo systemctl enable "$RATHOLE_SERVICE" >/dev/null
-        sudo systemctl start "$RATHOLE_SERVICE" >/dev/null
+        systemctl enable "$RATHOLE_SERVICE" >/dev/null
+        systemctl start "$RATHOLE_SERVICE" >/dev/null
     fi
 
     echo "Установка скрипта аварийного перезапуска Rathole..."
@@ -721,9 +718,9 @@ EOF
 
     if [[ ! -f "$SYSTEM_BIN_DIR/$RATHOLE_WATCH_BIN" ]]; then
         if [[ -f "$RATHOLE_WATCH_BIN" ]]; then
-            sudo chmod +x "$RATHOLE_WATCH_BIN"
-            sudo cp "$RATHOLE_WATCH_BIN" "$SYSTEM_BIN_DIR/"
-            sudo rm -f "$RATHOLE_WATCH_BIN"
+            chmod +x "$RATHOLE_WATCH_BIN"
+            cp "$RATHOLE_WATCH_BIN" "$SYSTEM_BIN_DIR/"
+            rm -f "$RATHOLE_WATCH_BIN"
         else
             echo "ОШИБКА! Скрипт аварийного перезапуска Rathole ($RATHOLE_WATCH_BIN) не найден в текущей папке! Настройка будет прервана." 1>&2
             exit 1
@@ -738,7 +735,7 @@ EOF
     RATHOLE_WATCH_LOG_ROTATE_FILE="/etc/logrotate.d/rathole-client-watch"
 
     if [[ ! -f "$RATHOLE_WATCH_LOG_ROTATE_FILE" ]]; then
-        sudo tee "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null <<EOF
+        tee "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null <<EOF
 ${RATHOLE_WATCH_LOG_FILE} {
     weekly
     rotate 4
@@ -748,26 +745,24 @@ ${RATHOLE_WATCH_LOG_FILE} {
 }
 EOF
 
-        sudo chown root:root "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null
-        sudo chmod 644 "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null
-
-        sudo logrotate -f "$RATHOLE_WATCH_LOG_ROTATE_FILE"
+        chmod 644 "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null
+        logrotate -f "$RATHOLE_WATCH_LOG_ROTATE_FILE"
     else
         echo "Ротация логов скрипта аварийного перезапуска Rathole уже настроена!"
     fi
 
     echo "Настройка периодического запуска (раз в 15 минут) скрипта аварийного перезапуска Rathole..."
 
-    CURRENT_CRON=$(sudo crontab -l 2>/dev/null || true)
+    CURRENT_CRON=$(crontab -l 2>/dev/null || true)
     RATHOLE_WATCH_CRON_JOB="*/15 * * * * $SYSTEM_BIN_DIR/$RATHOLE_WATCH_BIN --config $RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE >/dev/null 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$RATHOLE_WATCH_CRON_JOB"; then
         echo "Периодический запуск скрипта аварийного перезапуска Rathole уже настроен!"
     else
         if [[ -z "$CURRENT_CRON" ]]; then
-            echo "$RATHOLE_WATCH_CRON_JOB" | sudo crontab - >/dev/null
+            echo "$RATHOLE_WATCH_CRON_JOB" | crontab - >/dev/null
         else
-            (echo "$CURRENT_CRON"; echo "$RATHOLE_WATCH_CRON_JOB") | sudo crontab - >/dev/null
+            (echo "$CURRENT_CRON"; echo "$RATHOLE_WATCH_CRON_JOB") | crontab - >/dev/null
         fi
     fi
 
@@ -778,12 +773,12 @@ EOF
     SSHD_CONFIG_DIR="/etc/ssh/sshd_config.d"
     SSHD_CONFIG_LASTLOG_FILE="00-disable-lastlog.conf"
 
-    sudo mkdir -p "$SSHD_CONFIG_DIR"
+    mkdir -p "$SSHD_CONFIG_DIR"
 
-    if sudo grep -E -riq "^[[:space:]]*PrintLastLog[[:space:]]+no" "$SSHD_CONFIG_FILE" "$SSHD_CONFIG_DIR/" 2>/dev/null; then
+    if grep -E -riq "^[[:space:]]*PrintLastLog[[:space:]]+no" "$SSHD_CONFIG_FILE" "$SSHD_CONFIG_DIR/" 2>/dev/null; then
         echo "Вывод информации о последнем входе в баннере SSH уже отключено!"
     else
-        echo "PrintLastLog no" | sudo tee "$SSHD_CONFIG_DIR/$SSHD_CONFIG_LASTLOG_FILE" >/dev/null
+        echo "PrintLastLog no" | tee "$SSHD_CONFIG_DIR/$SSHD_CONFIG_LASTLOG_FILE" >/dev/null
     fi
 
     echo "Отключение вывода справочных ссылок о системе Ubuntu в баннере SSH..."
@@ -794,7 +789,7 @@ EOF
         if [[ ! -x "$UPDATE_MOTD_HELP_FILE" ]]; then
             echo "Вывод справочных ссылок о системе Ubuntu в баннере SSH уже отключен!"
         else
-            sudo chmod -x "$UPDATE_MOTD_HELP_FILE"
+            chmod -x "$UPDATE_MOTD_HELP_FILE"
         fi
     fi
 
@@ -803,10 +798,10 @@ EOF
     UNAUTH_SSH_BANNER="/etc/issue.net"
     UNAUTH_SSH_GREETING="Welcome to CADENA Ubuntu Server"
 
-    if sudo grep -q "$UNAUTH_SSH_GREETING" "$UNAUTH_SSH_BANNER" 2>/dev/null; then
+    if grep -q "$UNAUTH_SSH_GREETING" "$UNAUTH_SSH_BANNER" 2>/dev/null; then
         echo "Баннер на этапе ввода логина интерфейса SSH уже настроен!"
     else
-        sudo tee "$UNAUTH_SSH_BANNER" >/dev/null <<EOF
+        tee "$UNAUTH_SSH_BANNER" >/dev/null <<EOF
 #############################################################################
 #                                                                           #
 #  ${UNAUTH_SSH_GREETING}                                                   #
@@ -829,7 +824,7 @@ EOF
 
     echo "Перезапуск службы SSH..."
 
-    sudo systemctl restart ssh >/dev/null 2>&1 || sudo systemctl restart sshd >/dev/null 2>&1
+    systemctl restart ssh >/dev/null 2>&1 || systemctl restart sshd >/dev/null 2>&1
 
     echo "Настройка удаленного доступа к рабочему столу (RDP)..."
 
@@ -841,12 +836,13 @@ EOF
         echo "=== Будут открыты графические настройки удаленного рабочего стола. По окончании настройки закройте их и вернитесь в это окно. Для начала настройки нажмите [Enter] ==="
 
         if type -p gnome-control-center >/dev/null; then
+            sudo -u "${SUDO_USER:-$USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus" \
             gnome-control-center system remote-desktop >/dev/null 2>&1 &
 
             read -p "Когда полностью завершите настройку удаленного рабочего стола в графическом окне, нажмите [Enter] для продолжения..."
         else
             echo "ВНИМАНИЕ: Графическая утилита настройки удаленного рабочего стола не найдена в системе!"
-            echo "Шаг будет пропущен без аварийного завершения скрипта настройки. У вас еще есть доступ по RDP"
+            echo "Шаг будет пропущен без аварийного завершения скрипта настройки. У вас еще есть доступ по SSH"
 
             read -p "Нажмите [Enter] для продолжения..."
         fi
@@ -855,7 +851,7 @@ EOF
     echo ""
     echo "Удаление данных из контекста процесса настройки..."
 
-    sudo rm -f "$STAGE_FILE"
+    rm -f "$STAGE_FILE"
 
     echo ""
     echo "------------------------------------------------"
@@ -863,5 +859,5 @@ EOF
     echo "------------------------------------------------"
 
     sleep 3
-    sudo reboot
+    reboot
 fi
