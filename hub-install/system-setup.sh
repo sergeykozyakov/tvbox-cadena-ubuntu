@@ -118,7 +118,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     if ! grep -q 'LANG="ru_RU.UTF-8"' "$ENV_FILE"; then
         apt install -y language-pack-ru >/dev/null
         locale-gen ru_RU.UTF-8 >/dev/null
-        update-locale LANG=ru_RU.UTF-8 >/dev/null
+        update-locale LANG=ru_RU.UTF-8 LANGUAGE= LC_MESSAGES=ru_RU.UTF-8 >/dev/null
         echo 'export LANG="ru_RU.UTF-8"' | tee -a "$ENV_FILE" >/dev/null
     else
         echo "Русский язык в консоли уже настроен!"
@@ -322,22 +322,10 @@ if [[ "$STAGE" == "2" ]]; then
 
     echo "Удаление лишних зависимостей и очистка кэша пакетов..."
 
-    apt autoremove -y >/dev/null
+    apt autoremove --purge -y >/dev/null
     apt clean >/dev/null
 
-    echo "Отключение устаревших менеджеров сетей..."
-
-    systemctl stop systemd-networkd systemd-networkd-wait-online wpa_supplicant >/dev/null 2>&1
-    systemctl disable systemd-networkd systemd-networkd-wait-online wpa_supplicant >/dev/null 2>&1
-    systemctl mask systemd-networkd systemd-networkd-wait-online >/dev/null 2>&1
-
-    echo "Очистка конфликтующих конфигурационных файлов устаревших менеджеров сетей..."
-   
-    rm -f /run/systemd/network/* >/dev/null 2>&1
-    rm -f /etc/systemd/network/* >/dev/null 2>&1
-    rm -rf /etc/NetworkManager/system-connections/* >/dev/null 2>&1
-
-    echo "Инициализация служб DHCP и точки доступа..."
+    echo "Подготовка служб DHCP и точки доступа..."
 
     systemctl mask --now hostapd >/dev/null
     systemctl disable --now dnsmasq >/dev/null
@@ -384,7 +372,6 @@ network:
       renderer: NetworkManager
       match:
         name: "eth0"
-      optional: true
       dhcp4: true
       dhcp6: true
       ipv6-address-generation: "stable-privacy"
@@ -442,7 +429,6 @@ network:
       renderer: NetworkManager
       match:
         name: "wlan0"
-      optional: true
       dhcp4: true
       dhcp6: true
       ipv6-address-generation: "stable-privacy"
@@ -530,31 +516,6 @@ EOF
         chmod 600 "$NETPLAN_HOTSPOT_FILE" >/dev/null
     fi
 
-    echo "Запуск службы NetworkManager..."
-
-    systemctl unmask NetworkManager >/dev/null 2>&1
-    systemctl enable NetworkManager >/dev/null 2>&1
-    systemctl start NetworkManager >/dev/null 2>&1
-
-    echo "Генерация и применение конфигурации Netplan..."
-
-    netplan generate >/dev/null
-    netplan apply >/dev/null
-
-    echo "Настройка маршрутизации трафика в ядре Linux..."
-
-    SYSCTL_CONFIG_IP_FORWARD_FILE="/etc/sysctl.d/99-ipforward.conf"
-
-    if [[ ! -f "$SYSCTL_CONFIG_IP_FORWARD_FILE" ]]; then
-        echo "net.ipv4.ip_forward=1" | tee "$SYSCTL_CONFIG_IP_FORWARD_FILE" >/dev/null
-    else
-        echo "Маршрутизация трафика в ядре Linux уже настроена!"
-    fi
-
-    echo "Применение настроек маршрутизации трафика в ядре Linux..."
-
-    sysctl -p "$SYSCTL_CONFIG_IP_FORWARD_FILE" >/dev/null
-
     echo "Настройка маршрутизации трафика в NetworkManager..."
 
     NETWORK_MANAGER_CONFIG_FILE="/etc/NetworkManager/NetworkManager.conf"
@@ -569,9 +530,28 @@ EOF
         sed -i '/^\[main\]/a ip-forwarding=true' "$NETWORK_MANAGER_CONFIG_FILE"
     fi
 
-    echo "Применение настроек маршрутизации трафика в NetworkManager..."
+    echo "Очистка конфигурационных файлов устаревших менеджеров сетей..."
+   
+    rm -f /etc/systemd/network/* >/dev/null 2>&1
+    rm -rf /etc/NetworkManager/system-connections/* >/dev/null 2>&1
 
-    systemctl restart NetworkManager >/dev/null
+    echo "Перезапуск службы NetworkManager для применения настроек..."
+
+    rm -f /run/systemd/network/* >/dev/null 2>&1 && systemctl restart NetworkManager >/dev/null 2>&1
+
+    echo "Настройка маршрутизации трафика в ядре Linux..."
+
+    SYSCTL_CONFIG_IP_FORWARD_FILE="/etc/sysctl.d/99-ipforward.conf"
+
+    if [[ ! -f "$SYSCTL_CONFIG_IP_FORWARD_FILE" ]]; then
+        echo "net.ipv4.ip_forward=1" | tee "$SYSCTL_CONFIG_IP_FORWARD_FILE" >/dev/null
+    else
+        echo "Маршрутизация трафика в ядре Linux уже настроена!"
+    fi
+
+    echo "Применение настроек маршрутизации трафика в ядре Linux..."
+
+    sysctl -p "$SYSCTL_CONFIG_IP_FORWARD_FILE" >/dev/null
 
     echo ""
     echo "Загрузка дистрибутива Happ Proxy..."
