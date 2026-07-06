@@ -79,11 +79,10 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     echo "Настройка автовхода в систему от имени текущего пользователя..."
 
     GDM_CONFIG_FILE="/etc/gdm3/custom.conf"
-    SUDO_USER="${SUDO_USER:-$USER}"
 
     if [[ -f "$GDM_CONFIG_FILE" ]]; then
         if grep -v "^[[:space:]]*#" "$GDM_CONFIG_FILE" | grep -E -q "^[[:space:]]*AutomaticLoginEnable[[:space:]]*=[[:space:]]*true" && \
-           grep -v "^[[:space:]]*#" "$GDM_CONFIG_FILE" | grep -E -q "^[[:space:]]*AutomaticLogin[[:space:]]*=[[:space:]]*$SUDO_USER"; then
+           grep -v "^[[:space:]]*#" "$GDM_CONFIG_FILE" | grep -E -q "^[[:space:]]*AutomaticLogin[[:space:]]*=[[:space:]]*${SUDO_USER:-$USER}"; then
             echo "Автовход в систему от имени текущего пользователя уже настроен!"
         else
             if ! grep -q "^[[:space:]]*\[daemon\]" "$GDM_CONFIG_FILE"; then
@@ -95,7 +94,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
             fi
 
             if grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLogin[[:space:]]*=" "$GDM_CONFIG_FILE"; then
-                sed -i -E "s/^#?\s*AutomaticLogin\s*=\s*.*/AutomaticLogin = $SUDO_USER/" "$GDM_CONFIG_FILE"
+                sed -i -E "s/^#?\s*AutomaticLogin\s*=\s*.*/AutomaticLogin = ${SUDO_USER:-$USER}/" "$GDM_CONFIG_FILE"
             fi
 
             if ! grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLoginEnable" "$GDM_CONFIG_FILE"; then
@@ -103,7 +102,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
             fi
 
             if ! grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLogin[[:space:]]*=" "$GDM_CONFIG_FILE"; then
-                sed -i "/^[[:space:]]*AutomaticLoginEnable/a AutomaticLogin = $SUDO_USER" "$GDM_CONFIG_FILE"
+                sed -i "/^[[:space:]]*AutomaticLoginEnable/a AutomaticLogin = ${SUDO_USER:-$USER}" "$GDM_CONFIG_FILE"
             fi
         fi
     else
@@ -118,7 +117,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     if ! grep -q 'LANG="ru_RU.UTF-8"' "$ENV_FILE"; then
         apt install -y language-pack-ru >/dev/null
         locale-gen ru_RU.UTF-8 >/dev/null
-        update-locale LANG=ru_RU.UTF-8 LANGUAGE= LC_MESSAGES=ru_RU.UTF-8 >/dev/null
+        update-locale LANG=ru_RU.UTF-8 LANGUAGE=ru_RU:ru LC_MESSAGES=ru_RU.UTF-8 >/dev/null
         echo 'export LANG="ru_RU.UTF-8"' | tee -a "$ENV_FILE" >/dev/null
     else
         echo "Русский язык в консоли уже настроен!"
@@ -206,6 +205,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     if gsettings get org.gnome.desktop.input-sources sources 2>/dev/null | grep -q "'ru'"; then
         echo "Русская раскладка клавиатуры уже установлена!"
     else
+        sudo -u "${SUDO_USER:-$USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus" \
         gsettings set org.gnome.desktop.input-sources sources "[('xkb', 'us'), ('xkb', 'ru')]" >/dev/null 2>&1
     fi
 
