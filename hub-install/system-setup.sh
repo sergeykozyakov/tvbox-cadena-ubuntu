@@ -437,7 +437,7 @@ network:
          auth:
             key-management: "psk-sha256"
             password: "${CLIENT_PASS}"
-          networkmanager:
+         networkmanager:
             uuid: "${NETPLAN_CLIENT_UUID}"
             name: "Client"
             passthrough:
