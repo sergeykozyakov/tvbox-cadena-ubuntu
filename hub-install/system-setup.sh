@@ -318,7 +318,7 @@ if [[ "$STAGE" == "2" ]]; then
     echo "Установка необходимых пакетов..."
     echo ""
 
-    DEBIAN_FRONTEND=noninteractive apt install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop logrotate cron
+    DEBIAN_FRONTEND=noninteractive apt install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron
 
     echo "Удаление лишних зависимостей и очистка кэша пакетов..."
 
@@ -516,20 +516,6 @@ EOF
         chmod 600 "$NETPLAN_HOTSPOT_FILE" >/dev/null
     fi
 
-    echo "Настройка маршрутизации трафика в NetworkManager..."
-
-    NETWORK_MANAGER_CONFIG_FILE="/etc/NetworkManager/NetworkManager.conf"
-
-    if grep -q "ip-forwarding" "$NETWORK_MANAGER_CONFIG_FILE"; then
-        if grep -E -q "^[[:space:]]*ip-forwarding[[:space:]]*=[[:space:]]*true" "$NETWORK_MANAGER_CONFIG_FILE"; then
-            echo "Маршрутизация трафика в NetworkManager уже настроена!"
-        else
-            sed -i -E 's/^[[:space:]]*#*ip-forwarding.*/ip-forwarding=true/' "$NETWORK_MANAGER_CONFIG_FILE"
-        fi
-    else
-        sed -i '/^\[main\]/a ip-forwarding=true' "$NETWORK_MANAGER_CONFIG_FILE"
-    fi
-
     echo "Очистка конфигурационных файлов устаревших менеджеров сетей..."
    
     rm -f /etc/systemd/network/* >/dev/null 2>&1
@@ -537,7 +523,8 @@ EOF
 
     echo "Перезапуск службы NetworkManager для применения настроек..."
 
-    rm -f /run/systemd/network/* >/dev/null 2>&1 && systemctl restart NetworkManager >/dev/null 2>&1
+    rm -f /run/systemd/network/* >/dev/null 2>&1
+    systemctl restart NetworkManager >/dev/null 2>&1
 
     echo "Настройка маршрутизации трафика в ядре Linux..."
 
@@ -844,7 +831,10 @@ EOF
     echo "------------------------------------------------"
     echo "Все этапы успешно выполнены! Перезагрузка..."
     echo "------------------------------------------------"
+    echo ""
 
-    sleep 3
+    fastfetch
+
+    sleep 10
     reboot
 fi
