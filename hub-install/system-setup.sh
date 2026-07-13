@@ -1,10 +1,5 @@
 #!/bin/bash
 
-if [[ "$(uname -m)" != "aarch64" ]]; then
-    echo "ОШИБКА! Этот скрипт предназначен только для устройств на архитектуре ARM64 (aarch64)"
-    exit 1
-fi
-
 set -e
 
 # Файл для хранения контекста между этапами
@@ -57,22 +52,24 @@ if [[ ! -f "$STAGE_FILE" ]]; then
         if su -c "apt update && apt install sudo -y && usermod -aG sudo $CURRENT_USER"; then
             echo "Утилита sudo успешно установлена!"
             echo ""
-            echo "Установка нового более сложного пароля для root..."
+            echo "Установка нового пароля для root..."
 
             su -c "passwd root"
 
             echo ""
-            echo "Пожалуйста, запустите этот скрипт еще раз от своего пользователя: sudo $0"
-            echo "Вам потребуется повторное открытие Терминала для применения изменений!"
+            echo "Пожалуйста, запустите этот скрипт еще раз с расширенными правами пользователя: sudo $0"
+            echo "Вам потребуется повторное открытие Терминала для выполнения этого действия!"
             exit 0
         else
-            echo "ОШИБКА! Не удалось установить sudo. Скрипт завершен" 1>&2
+            echo "ОШИБКА! Не удалось установить sudo. Скрипт завершен!" 1>&2
             exit 1
         fi
     fi
 
+    # ================================================================================ #
+
     if [[ "$EUID" -ne 0 ]]; then
-        echo "Пожалуйста, запустите скрипт с правами sudo: sudo $0"
+        echo "Пожалуйста, запустите скрипт с расширенными правами пользователя: sudo $0"
         exit 1
     fi
 
@@ -200,13 +197,14 @@ if [[ ! -f "$STAGE_FILE" ]]; then
         timedatectl set-timezone "$TIMEZONE"
     fi
 
+    USER_RUN="sudo -u ${SUDO_USER:-$USER} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus"
+
     echo  "Установка русской раскладки клавиатуры..."
 
-    if gsettings get org.gnome.desktop.input-sources sources 2>/dev/null | grep -q "'ru'"; then
+    if $USER_RUN gsettings get org.gnome.desktop.input-sources sources 2>/dev/null | grep -q "'ru'"; then
         echo "Русская раскладка клавиатуры уже установлена!"
     else
-        sudo -u "${SUDO_USER:-$USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus" \
-        gsettings set org.gnome.desktop.input-sources sources "[('xkb', 'us'), ('xkb', 'ru')]" >/dev/null 2>&1
+        $USER_RUN gsettings set org.gnome.desktop.input-sources sources "[('xkb', 'us'), ('xkb', 'ru')]" >/dev/null 2>&1
     fi
 
     echo ""
@@ -215,13 +213,18 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     read -p ""
 
     if type -p gnome-language-selector >/dev/null; then
-        sudo -u "${SUDO_USER:-$USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus" \
-        gnome-language-selector &
+        if [[ -z "$DISPLAY" ]] && [[ -z "$WAYLAND_DISPLAY" ]]; then
+            echo "ВНИМАНИЕ: Графическая утилита настройки языка не может быть запущена в консольном режиме! Шаг будет пропущен."
 
-        read -p "Когда полностью завершите настройку русского языка в графическом окне, нажмите [Enter] для перезагрузки..."
+            read -p "Нажмите [Enter] для перезагрузки..."
+        else
+            $USER_RUN gnome-language-selector &
+
+            read -p "Когда полностью завершите настройку русского языка в графическом окне, нажмите [Enter] для перезагрузки..."
+        fi
     else
-        echo "ВНИМАНИЕ: Графическая утилита настройки языка не найдена в системе"
-        echo "Пожалуйста, откройте её самостоятельно через главное меню: «Параметры» -> «Язык и регион»"
+        echo "ВНИМАНИЕ: Графическая утилита настройки языка не найдена в системе!"
+        echo "Пожалуйста, найдите её самостоятельно через главное меню: «Параметры» -> «Язык и регион»."
 
         read -p "После того как примените русский язык везде, вернитесь в это окно и нажмите [Enter] для перезагрузки..."
     fi
@@ -238,8 +241,10 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     exit 0
 fi
 
+# ================================================================================ #
+
 if [[ "$EUID" -ne 0 ]]; then
-    echo "Пожалуйста, запустите скрипт с правами sudo: sudo $0"
+    echo "Пожалуйста, запустите скрипт с расширенными правами пользователя: sudo $0"
     exit 1
 fi
 
@@ -519,11 +524,15 @@ EOF
     echo "Очистка конфигурационных файлов устаревших менеджеров сетей..."
    
     rm -f /etc/systemd/network/* >/dev/null 2>&1
+    rm -f /run/systemd/network/* >/dev/null 2>&1
     rm -rf /etc/NetworkManager/system-connections/* >/dev/null 2>&1
 
-    echo "Перезапуск службы NetworkManager для применения настроек..."
+    echo "Применение конфигурационных файлов netplan..."
 
-    rm -f /run/systemd/network/* >/dev/null 2>&1
+    netplan apply >/dev/null 2>&1
+
+    echo "Перезапуск службы NetworkManager для применения сетевых настроек..."
+
     systemctl restart NetworkManager >/dev/null 2>&1
 
     echo "Настройка маршрутизации трафика в ядре Linux..."
@@ -726,7 +735,7 @@ EOF
     if echo "$CURRENT_CRON" | grep -Fq "$RATHOLE_WATCH_CRON_JOB"; then
         echo "Периодический запуск скрипта аварийного перезапуска Rathole уже настроен!"
     else
-        { echo "$CURRENT_CRON"; echo "$RATHOLE_WATCH_CRON_JOB"; } | grep -v '^$' | crontab - >/dev/null
+        { echo "$CURRENT_CRON"; echo "$RATHOLE_WATCH_CRON_JOB"; } | crontab - >/dev/null
     fi
 
     echo "Настройка периодического запуска обновлений системы раз в неделю..."
@@ -737,7 +746,7 @@ EOF
     if echo "$CURRENT_CRON" | grep -Fq "$APT_UPGRADE_CRON_JOB"; then
         echo "Периодический запуск обновлений системы раз в неделю уже настроен!"
     else
-        { echo "$CURRENT_CRON"; echo "$APT_UPGRADE_CRON_JOB"; } | grep -v '^$' | crontab - >/dev/null
+        { echo "$CURRENT_CRON"; echo "$APT_UPGRADE_CRON_JOB"; } | crontab - >/dev/null
     fi
 
     echo ""
@@ -803,22 +812,27 @@ EOF
     echo "Настройка удаленного доступа к рабочему столу (RDP)..."
 
     if systemctl --user is-active --quiet gnome-remote-desktop; then
-        echo "RDP уже включен и работает!"
+        echo "Удаленный доступ к рабочему столу (RDP) уже включен и работает!"
     else
-        echo "RDP выключен! Требуется настройка..."
-        echo ""
-        echo "=== Будут открыты графические настройки удаленного рабочего стола. По окончании настройки закройте их и вернитесь в это окно. Для начала настройки нажмите [Enter] ==="
-
-        if type -p gnome-control-center >/dev/null; then
-            sudo -u "${SUDO_USER:-$USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus" \
-            gnome-control-center system remote-desktop >/dev/null 2>&1 &
-
-            read -p "Когда полностью завершите настройку удаленного рабочего стола в графическом окне, нажмите [Enter] для продолжения..."
-        else
-            echo "ВНИМАНИЕ: Графическая утилита настройки удаленного рабочего стола не найдена в системе!"
-            echo "Шаг будет пропущен без аварийного завершения скрипта настройки. У вас еще есть доступ по SSH"
+        if [[ -z "$DISPLAY" ]] && [[ -z "$WAYLAND_DISPLAY" ]]; then
+            echo "ВНИМАНИЕ: Графическая утилита настройки удаленного рабочего стола не может быть запущена в консольном режиме! Шаг будет пропущен."
 
             read -p "Нажмите [Enter] для продолжения..."
+        else
+            echo "Удаленный доступ к рабочему столу (RDP) неактивен! Требуется настройка..."
+            echo ""
+            echo "=== Будут открыты графические настройки удаленного рабочего стола. По окончании настройки закройте их и вернитесь в это окно. Для начала настройки нажмите [Enter] ==="
+
+            if type -p gnome-control-center >/dev/null; then
+                sudo -u "${SUDO_USER:-$USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus" \
+                gnome-control-center system remote-desktop >/dev/null 2>&1 &
+
+                read -p "Когда полностью завершите настройку удаленного рабочего стола в графическом окне, нажмите [Enter] для продолжения..."
+            else
+                echo "ВНИМАНИЕ: Графическая утилита настройки удаленного рабочего стола не найдена в системе! Шаг будет пропущен."
+
+                read -p "Нажмите [Enter] для продолжения..."
+            fi
         fi
     fi
 
