@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -e
 
 # Файл для хранения контекста между этапами
@@ -46,6 +45,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     if ! command -v sudo >/dev/null 2>&1; then
         echo ""
         echo "Утилита sudo отсутствует в системе. Выполняется ее установка через root..." 1>&2
+        echo ""
 
         CURRENT_USER="${USER:-$(id -un)}"
 
@@ -112,7 +112,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     ENV_FILE="/etc/environment"
 
     if ! grep -q 'LANG="ru_RU.UTF-8"' "$ENV_FILE"; then
-        apt install -y language-pack-ru >/dev/null
+        apt update && apt install -y language-pack-ru
         locale-gen ru_RU.UTF-8 >/dev/null
         update-locale LANG=ru_RU.UTF-8 LANGUAGE=ru_RU:ru LC_MESSAGES=ru_RU.UTF-8 >/dev/null
         echo 'export LANG="ru_RU.UTF-8"' | tee -a "$ENV_FILE" >/dev/null
@@ -258,12 +258,6 @@ if [[ "$STAGE" == "2" ]]; then
     echo ""
     echo "=== [ЭТАП 2] Продолжение настройки системы ==="
     echo ""
-
-    echo "Обновление списка пакетов..."
-
-    apt update >/dev/null || true
-
-    echo ""
     echo "Создание файла подкачки..."
 
     SWAP_FILE="/swapfile"
@@ -323,12 +317,11 @@ if [[ "$STAGE" == "2" ]]; then
     echo "Установка необходимых пакетов..."
     echo ""
 
-    DEBIAN_FRONTEND=noninteractive apt install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron
+    apt update && apt install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron
 
     echo "Удаление лишних зависимостей и очистка кэша пакетов..."
 
-    apt autoremove --purge -y >/dev/null
-    apt clean >/dev/null
+    apt autoremove --purge -y && apt clean
 
     echo "Подготовка служб DHCP и точки доступа..."
 
@@ -569,12 +562,14 @@ EOF
         echo "Дистрибутив Happ Proxy уже установлен!"
     else
         echo "Распаковка пакета Happ Proxy..."
+        echo ""
 
-        dpkg -i "$HAPP_BIN" >/dev/null || true
+        dpkg -i "$HAPP_BIN" || true
 
         echo "Установка недостающих зависимостей и завершение установки Happ Proxy..."
+        echo ""
 
-        apt install -f -y >/dev/null
+        apt install -f -y
     fi
 
     echo ""
@@ -741,7 +736,7 @@ EOF
     echo "Настройка периодического запуска обновлений системы раз в неделю..."
 
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-    APT_UPGRADE_CRON_JOB="0    5 * * 0 apt update && apt upgrade -y && apt autoremove --purge -y && apt clean > /dev/null 2>&1"
+    APT_UPGRADE_CRON_JOB="0    5 * * 0 DEBIAN_FRONTEND=noninteractive apt update && apt upgrade -y && apt autoremove --purge -y && apt clean > /dev/null 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$APT_UPGRADE_CRON_JOB"; then
         echo "Периодический запуск обновлений системы раз в неделю уже настроен!"
