@@ -325,8 +325,8 @@ if [[ "$STAGE" == "2" ]]; then
 
     echo "Подготовка служб DHCP и точки доступа..."
 
-    systemctl mask --now hostapd >/dev/null
-    systemctl disable --now dnsmasq >/dev/null
+    systemctl mask --now hostapd >/dev/null 2>&1
+    systemctl disable --now dnsmasq >/dev/null 2>&1
 
     echo "Генерация UUID-значений для сетевых интерфейсов..."
 
@@ -514,6 +514,10 @@ EOF
         chmod 600 "$NETPLAN_HOTSPOT_FILE" >/dev/null
     fi
 
+    echo "Остановка служб устаревших менеджеров сетей..."
+
+    systemctl mask --now systemd-networkd-wait-online.service >/dev/null 2>&1
+
     echo "Очистка конфигурационных файлов устаревших менеджеров сетей..."
    
     rm -f /etc/systemd/network/* >/dev/null 2>&1
@@ -679,8 +683,7 @@ EOF
     if systemctl is-active --quiet "$RATHOLE_SERVICE"; then
         echo "Системная служба Rathole уже запущена!"
     else
-        systemctl enable "$RATHOLE_SERVICE" >/dev/null
-        systemctl start "$RATHOLE_SERVICE" >/dev/null
+        systemctl enable --now "$RATHOLE_SERVICE" >/dev/null 2>&1
     fi
 
     echo "Установка скрипта аварийного перезапуска Rathole..."
