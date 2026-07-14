@@ -745,6 +745,11 @@ EOF
     fi
 
     echo ""
+    echo "Исключение пакетов SSH из автоматического обновления..."
+
+    apt-mark hold openssh-server openssh-client >/dev/null
+
+    echo ""
     echo "Отключение вывода информации о последнем входе в баннере SSH..."
 
     SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
