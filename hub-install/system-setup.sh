@@ -50,9 +50,12 @@ if [[ ! -f "$STAGE_FILE" ]]; then
         CURRENT_USER="${USER:-$(id -un)}"
 
         if su -c "apt update && apt install sudo -y && usermod -aG sudo $CURRENT_USER"; then
+            echo ""
             echo "Утилита sudo успешно установлена!"
             echo ""
-            echo "Установка нового пароля для root..."
+            echo "Выполняется установка нового пароля для root..."
+            echo ""
+            echo "Сначала введите текущий пароль, затем новый пароль и его подтверждение."
 
             su -c "passwd root"
 
@@ -116,8 +119,10 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
     if ! grep -q 'LANG="ru_RU.UTF-8"' "$ENV_FILE"; then
         apt update && apt install -y language-pack-ru
+
         locale-gen ru_RU.UTF-8 >/dev/null
         update-locale LANG=ru_RU.UTF-8 LANGUAGE=ru_RU:ru LC_MESSAGES=ru_RU.UTF-8 >/dev/null
+
         echo 'export LANG="ru_RU.UTF-8"' | tee -a "$ENV_FILE" >/dev/null
     else
         echo "Русский язык в консоли уже настроен!"
@@ -322,6 +327,7 @@ if [[ "$STAGE" == "2" ]]; then
 
     apt update && apt install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron
 
+    echo ""
     echo "Удаление лишних зависимостей и очистка кэша пакетов..."
 
     apt autoremove --purge -y && apt clean
@@ -378,9 +384,9 @@ network:
       ipv6-address-generation: "stable-privacy"
       wakeonlan: true
       routes:
-        - to: ${RATHOLE_HOST}/32
-          via: ${CLIENT_GATEWAY}
-          metric: 5
+      - to: ${RATHOLE_HOST}/32
+        via: ${CLIENT_GATEWAY}
+        metric: 5
       networkmanager:
         uuid: "${NETPLAN_ETH_UUID}"
         name: "Wired"
@@ -435,21 +441,20 @@ network:
       ipv6-address-generation: "stable-privacy"
       access-points:
         "${CLIENT_SSID}":
-         auth:
+          auth:
             key-management: "psk-sha256"
             password: "${CLIENT_PASS}"
-         band: "5GHz"
-         channel: 44
-         networkmanager:
+          band: "5GHz"
+          networkmanager:
             uuid: "${NETPLAN_CLIENT_UUID}"
             name: "Client"
             passthrough:
               ipv6.ip6-privacy: "-1"
               proxy._: ""
       routes:
-        - to: ${RATHOLE_HOST}/32
-          via: ${CLIENT_GATEWAY}
-          metric: 10
+      - to: ${RATHOLE_HOST}/32
+        via: ${CLIENT_GATEWAY}
+        metric: 10
       networkmanager:
         uuid: "${NETPLAN_CLIENT_UUID}"
         name: "Client"
@@ -501,7 +506,6 @@ network:
             key-management: "psk-sha256"
             password: "${HOTSPOT_PASS}"
           band: "5GHz"
-          channel: 44
           mode: "ap"
           networkmanager:
             uuid: "${NETPLAN_HOTSPOT_UUID}"
