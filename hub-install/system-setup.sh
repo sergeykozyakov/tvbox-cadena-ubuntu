@@ -57,8 +57,11 @@ if [[ ! -f "$STAGE_FILE" ]]; then
             su -c "passwd root"
 
             echo ""
-            echo "Пожалуйста, запустите этот скрипт еще раз с расширенными правами пользователя: sudo $0"
-            echo "Вам потребуется повторное открытие Терминала для выполнения этого действия!"
+            echo "Настройка sudo завершена. Перезагрузка..."
+            echo "После перезагрузки, запустите этот скрипт еще раз с расширенными правами пользователя: sudo $0"
+
+            sleep 3
+            reboot
             exit 0
         else
             echo "ОШИБКА! Не удалось установить sudo. Скрипт завершен!" 1>&2
@@ -435,6 +438,8 @@ network:
          auth:
             key-management: "psk-sha256"
             password: "${CLIENT_PASS}"
+         band: "5GHz"
+         channel: 44
          networkmanager:
             uuid: "${NETPLAN_CLIENT_UUID}"
             name: "Client"
@@ -495,6 +500,8 @@ network:
           auth:
             key-management: "psk-sha256"
             password: "${HOTSPOT_PASS}"
+          band: "5GHz"
+          channel: 44
           mode: "ap"
           networkmanager:
             uuid: "${NETPLAN_HOTSPOT_UUID}"
