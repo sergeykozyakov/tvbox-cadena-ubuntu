@@ -15,25 +15,25 @@ HAPP_URL="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/$H
 curl -L "$HAPP_URL" -o "$HAPP_BIN"
 
 echo "Обновление дистрибутива Happ Proxy..."
-echo "Распаковка пакета Happ Proxy (ошибки зависимостей на этом шаге — это нормальное поведение)..."
+echo "Распаковка пакета Happ Proxy..."
 
-dpkg -i "$HAPP_BIN" > /dev/null 2>&1 || true
+dpkg -i "$HAPP_BIN" >/dev/null 2>&1 || true
 
 echo "Установка недостающих зависимостей и завершение обновления Happ Proxy..."
 
-apt update > /dev/null
-apt install -f -y > /dev/null
+apt update >/dev/null
+apt install -f -y >/dev/null
 
 echo "Удаление лишних зависимостей и очистка кэша пакетов..."
 
-apt autoremove -y > /dev/null
-apt clean > /dev/null
+apt autoremove -y >/dev/null
+apt clean >/dev/null
 
 rm -f "$HAPP_BIN"
 
 echo "Обновление успешно выполнено!"
 echo "Графическая сессия gdm3 будет перезапущена через 3 секунды..."
 
-(sleep 3 && systemctl restart gdm3) > /dev/null 2>&1 &
+(sleep 3 && systemctl restart gdm3) >/dev/null 2>&1 &
 
 exit 0

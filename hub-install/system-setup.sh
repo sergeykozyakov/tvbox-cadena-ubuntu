@@ -739,7 +739,7 @@ EOF
     echo "Настройка периодического запуска (раз в 15 минут) скрипта аварийного перезапуска Rathole..."
 
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-    RATHOLE_WATCH_CRON_JOB="*/15 * * * * $SYSTEM_BIN_DIR/$RATHOLE_WATCH_BIN --config $RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE > /dev/null 2>&1"
+    RATHOLE_WATCH_CRON_JOB="*/15 * * * * $SYSTEM_BIN_DIR/$RATHOLE_WATCH_BIN --config $RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE >/dev/null 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$RATHOLE_WATCH_CRON_JOB"; then
         echo "Периодический запуск скрипта аварийного перезапуска Rathole уже настроен!"
@@ -750,7 +750,7 @@ EOF
     echo "Настройка периодического запуска обновлений системы раз в неделю..."
 
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-    APT_UPGRADE_CRON_JOB="0    5 * * 0 DEBIAN_FRONTEND=noninteractive apt update && apt upgrade -y && apt autoremove --purge -y && apt clean > /dev/null 2>&1"
+    APT_UPGRADE_CRON_JOB="0    5 * * 0 DEBIAN_FRONTEND=noninteractive apt update && apt upgrade -y && apt autoremove --purge -y && apt clean >/dev/null 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$APT_UPGRADE_CRON_JOB"; then
         echo "Периодический запуск обновлений системы раз в неделю уже настроен!"

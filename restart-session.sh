@@ -12,6 +12,6 @@ fi
 echo "Графическая сессия gdm3 будет перезапущена через 3 секунды..."
 
 # Перезапуск службы GDM заставит рабочий стол перезагрузиться и выполнить автовход
-(sleep 3 && systemctl restart gdm3) > /dev/null 2>&1 &
+(sleep 3 && systemctl restart gdm3) >/dev/null 2>&1 &
 
 exit 0
