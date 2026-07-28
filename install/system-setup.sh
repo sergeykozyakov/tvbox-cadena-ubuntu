@@ -802,7 +802,7 @@ EOF
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
     HAPP_UPGRADE_CRON_JOB="0    4 1,15 * * /root/$HAPP_URGRADE_SH >> $HAPP_URGRADE_LOG_FILE 2>&1"
 
-    if echo "$CURRENT_CRON" | grep -Fq "HAPP_UPGRADE_CRON_JOB"; then
+    if echo "$CURRENT_CRON" | grep -Fq "$HAPP_UPGRADE_CRON_JOB"; then
         echo "Периодический запуск скрипта обновлений Happ Proxy раз в 2 недели уже настроен!"
     else
         { echo "$CURRENT_CRON"; echo "$HAPP_UPGRADE_CRON_JOB"; } | crontab - >/dev/null
