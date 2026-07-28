@@ -49,7 +49,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
         CURRENT_USER="${USER:-$(id -un)}"
 
-        if su -c "apt update && apt install sudo -y && usermod -aG sudo $CURRENT_USER"; then
+        if su -c "apt-get update && apt-get install sudo -y && usermod -aG sudo $CURRENT_USER"; then
             echo ""
             echo "Утилита sudo успешно установлена!"
             echo ""
@@ -118,7 +118,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     ENV_FILE="/etc/environment"
 
     if ! grep -q 'LANG="ru_RU.UTF-8"' "$ENV_FILE"; then
-        apt update && apt install -y language-pack-ru
+        apt-get update && apt-get install -y language-pack-ru
 
         locale-gen ru_RU.UTF-8 >/dev/null
         update-locale LANG=ru_RU.UTF-8 LANGUAGE=ru_RU:ru LC_MESSAGES=ru_RU.UTF-8 >/dev/null
@@ -325,12 +325,12 @@ if [[ "$STAGE" == "2" ]]; then
     echo "Установка необходимых пакетов..."
     echo ""
 
-    apt update && apt install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron
+    apt-get update && apt-get install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron
 
     echo ""
     echo "Удаление лишних зависимостей и очистка кэша пакетов..."
 
-    apt autoremove --purge -y && apt clean
+    apt-get autoremove --purge -y && apt-get clean
 
     echo "Подготовка служб DHCP и точки доступа..."
 
@@ -564,7 +564,7 @@ EOF
     HAPP_URL="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/$HAPP_BIN"
 
     if [[ ! -f "$HAPP_BIN" ]]; then
-        curl -L "$HAPP_URL" -o "$HAPP_BIN"
+        curl -SL "$HAPP_URL" -o "$HAPP_BIN"
     else
         echo "Дистрибутив Happ Proxy уже загружен!"
     fi
@@ -584,7 +584,7 @@ EOF
         echo "Установка недостающих зависимостей и завершение установки Happ Proxy..."
         echo ""
 
-        apt install -f -y
+        apt-get install -f -y
     fi
 
     echo ""
@@ -603,7 +603,7 @@ EOF
     if [[ ! -f "$SYSTEM_BIN_DIR/$RATHOLE_BIN" ]]; then
         if [[ ! -f "$RATHOLE_BIN" ]]; then
             if [[ ! -f "$RATHOLE_ZIP" ]]; then
-                curl -L "$RATHOLE_URL" -o "$RATHOLE_ZIP"
+                curl -SL "$RATHOLE_URL" -o "$RATHOLE_ZIP"
             else
                 echo "Zip-архив Rathole уже существует! Распаковка..."
             fi
@@ -699,15 +699,15 @@ EOF
 
     echo "Установка скрипта аварийного перезапуска Rathole..."
 
-    RATHOLE_WATCH_BIN="rathole-client-watch.sh"
+    RATHOLE_WATCH_SH="rathole-client-watch.sh"
 
-    if [[ ! -f "$SYSTEM_BIN_DIR/$RATHOLE_WATCH_BIN" ]]; then
-        if [[ -f "$RATHOLE_WATCH_BIN" ]]; then
-            chmod +x "$RATHOLE_WATCH_BIN"
-            cp "$RATHOLE_WATCH_BIN" "$SYSTEM_BIN_DIR/"
-            rm -f "$RATHOLE_WATCH_BIN"
+    if [[ ! -f "/root/$RATHOLE_WATCH_SH" ]]; then
+        if [[ -f "$RATHOLE_WATCH_SH" ]]; then
+            chmod +x "$RATHOLE_WATCH_SH"
+            cp "$RATHOLE_WATCH_SH" /root/"
+            rm -f "$RATHOLE_WATCH_SH"
         else
-            echo "ОШИБКА! Скрипт аварийного перезапуска Rathole ($RATHOLE_WATCH_BIN) не найден в текущей папке! Настройка будет прервана." 1>&2
+            echo "ОШИБКА! Скрипт аварийного перезапуска Rathole ($RATHOLE_WATCH_SH) не найден в текущей папке! Настройка будет прервана." 1>&2
             exit 1
         fi
     else
@@ -736,10 +736,49 @@ EOF
         echo "Ротация логов скрипта аварийного перезапуска Rathole уже настроена!"
     fi
 
+    echo "Установка скрипта обновлений Happ Proxy..."
+
+    HAPP_URGRADE_SH="upgrade-happ.sh"
+
+    if [[ ! -f "/root/$HAPP_URGRADE_SH" ]]; then
+        if [[ -f "$HAPP_URGRADE_SH" ]]; then
+            chmod +x "$HAPP_URGRADE_SH"
+            cp "$HAPP_URGRADE_SH" /root/
+            rm -f "$HAPP_URGRADE_SH"
+        else
+            echo "ОШИБКА! Скрипт обновлений Happ Proxy ($HAPP_URGRADE_SH) не найден в текущей папке! Настройка будет прервана." 1>&2
+            exit 1
+        fi
+    else
+        echo "Скрипт обновлений Happ Proxy уже установлен!"
+    fi
+
+    echo "Настройка ротации логов скрипта обновлений Happ Proxy..."
+
+    HAPP_URGRADE_LOG_FILE="/var/log/upgrade-happ.log"
+    HAPP_URGRADE_LOG_ROTATE_FILE="/etc/logrotate.d/upgrade-happ"
+
+    if [[ ! -f "$HAPP_URGRADE_LOG_ROTATE_FILE" ]]; then
+        tee "$HAPP_URGRADE_LOG_ROTATE_FILE" >/dev/null <<EOF
+${HAPP_URGRADE_LOG_FILE} {
+    monthly
+    rotate 3
+    compress
+    missingok
+    notifempty
+}
+EOF
+
+        chmod 644 "$HAPP_URGRADE_LOG_ROTATE_FILE" >/dev/null
+        logrotate -f "$HAPP_URGRADE_LOG_ROTATE_FILE"
+    else
+        echo "Ротация логов скрипта бновлений Happ Proxy уже настроена!"
+    fi
+
     echo "Настройка периодического запуска (раз в 15 минут) скрипта аварийного перезапуска Rathole..."
 
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-    RATHOLE_WATCH_CRON_JOB="*/15 * * * * $SYSTEM_BIN_DIR/$RATHOLE_WATCH_BIN --config $RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE >/dev/null 2>&1"
+    RATHOLE_WATCH_CRON_JOB="*/15 * *    * * /root/$RATHOLE_WATCH_SH --config $RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE >/dev/null 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$RATHOLE_WATCH_CRON_JOB"; then
         echo "Периодический запуск скрипта аварийного перезапуска Rathole уже настроен!"
@@ -750,12 +789,23 @@ EOF
     echo "Настройка периодического запуска обновлений системы раз в неделю..."
 
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-    APT_UPGRADE_CRON_JOB="0    5 * * 0 DEBIAN_FRONTEND=noninteractive apt update && apt upgrade -y && apt autoremove --purge -y && apt clean >/dev/null 2>&1"
+    APT_UPGRADE_CRON_JOB="0    5 *    * 0 DEBIAN_FRONTEND=noninteractive apt-get update && apt-get upgrade -y && apt-get autoremove --purge -y && apt-get clean >/dev/null 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$APT_UPGRADE_CRON_JOB"; then
         echo "Периодический запуск обновлений системы раз в неделю уже настроен!"
     else
         { echo "$CURRENT_CRON"; echo "$APT_UPGRADE_CRON_JOB"; } | crontab - >/dev/null
+    fi
+
+    echo "Настройка периодического запуска скрипта обновлений Happ Proxy раз в 2 недели..."
+
+    CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+    HAPP_UPGRADE_CRON_JOB="0    4 1,15 * * /root/$HAPP_URGRADE_SH >> $HAPP_URGRADE_LOG_FILE 2>&1"
+
+    if echo "$CURRENT_CRON" | grep -Fq "HAPP_UPGRADE_CRON_JOB"; then
+        echo "Периодический запуск скрипта обновлений Happ Proxy раз в 2 недели уже настроен!"
+    else
+        { echo "$CURRENT_CRON"; echo "$HAPP_UPGRADE_CRON_JOB"; } | crontab - >/dev/null
     fi
 
     echo ""
