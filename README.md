@@ -13,6 +13,9 @@ Place all sh-install files (`install` directory) to your home directory. Use in 
 ```
 ├── install/                     # directory for tv-box installation
 │   └── system-setup.sh          # run this script for installation
+├── proxy-dns/                   # directory for SOCKS5 + DNS over TLS installation (use README.MD)
+│   ├── vpn-routing.sh           # start proxy routing shell-script (use in service)
+│   └── vpn-clear.sh             # stop proxy routing shell-script (use in service)
 ├── server/                      # (optional) SSH/RDP port-forwarding server settings (copy files as located)
 └── utils/                       # directory for tv-box every-day helpers
     ├── restart-session.sh       # use it for RDP mode restore after hang-ups and for xray server quick restart

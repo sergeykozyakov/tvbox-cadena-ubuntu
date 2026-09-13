@@ -1,0 +1,13 @@
+[Unit]
+Description=Permanent Redsocks proxy VPN routing
+After=network-online.target redsocks.service
+Wants=network-online.target redsocks.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/vpn-routing.sh
+ExecStopPost=/usr/local/bin/vpn-clear.sh
+
+[Install]
+WantedBy=multi-user.target
