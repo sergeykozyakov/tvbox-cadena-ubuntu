@@ -778,6 +778,11 @@ EOF
     echo "Настройка периодического запуска (раз в 15 минут) скрипта аварийного перезапуска Rathole..."
 
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+
+    if [[ -z "$CURRENT_CRON" ]]; then
+        CURRENT_CRON=$(EDITOR=cat crontab -e 2>/dev/null || true)
+    fi
+
     RATHOLE_WATCH_CRON_JOB="*/15 * *    * * /root/$RATHOLE_WATCH_SH --config $RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE >/dev/null 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$RATHOLE_WATCH_CRON_JOB"; then
@@ -789,7 +794,12 @@ EOF
     echo "Настройка периодического запуска обновлений системы раз в неделю..."
 
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-    APT_UPGRADE_CRON_JOB="0    5 *    * 0 DEBIAN_FRONTEND=noninteractive apt-get update && apt-get upgrade -y && apt-get autoremove --purge -y && apt-get clean >/dev/null 2>&1"
+
+    if [[ -z "$CURRENT_CRON" ]]; then
+        CURRENT_CRON=$(EDITOR=cat crontab -e 2>/dev/null || true)
+    fi
+
+    APT_UPGRADE_CRON_JOB="0    5 *    * 0 DEBIAN_FRONTEND=noninteractive apt-get update && apt-get upgrade -y -o Dpkg::Options::=\"--force-confdef\" -o Dpkg::Options::=\"--force-confold\" && apt-get autoremove --purge -y -o Dpkg::Options::=\"--force-confdef\" -o Dpkg::Options::=\"--force-confold\" && apt-get clean >/dev/null 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$APT_UPGRADE_CRON_JOB"; then
         echo "Периодический запуск обновлений системы раз в неделю уже настроен!"
@@ -800,6 +810,11 @@ EOF
     echo "Настройка периодического запуска скрипта обновлений Happ Proxy раз в 2 недели..."
 
     CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+
+    if [[ -z "$CURRENT_CRON" ]]; then
+        CURRENT_CRON=$(EDITOR=cat crontab -e 2>/dev/null || true)
+    fi
+
     HAPP_UPGRADE_CRON_JOB="0    4 1,15 * * /root/$HAPP_URGRADE_SH >> $HAPP_URGRADE_LOG_FILE 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$HAPP_UPGRADE_CRON_JOB"; then
@@ -807,11 +822,6 @@ EOF
     else
         { echo "$CURRENT_CRON"; echo "$HAPP_UPGRADE_CRON_JOB"; } | crontab - >/dev/null
     fi
-
-    echo ""
-    echo "Исключение пакетов SSH из автоматического обновления..."
-
-    apt-mark hold openssh-server openssh-client >/dev/null
 
     echo ""
     echo "Отключение вывода информации о последнем входе в баннере SSH..."
