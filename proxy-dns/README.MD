@@ -1,8 +1,7 @@
-1. Turn **on** special `Happ` checkboxes:
+1. Turn **on** special `Happ` checkbox:
 
 ```
-a. Settings -> Allow LAN connections
-b. Settings -> Subscriptions -> Alternative HWID
+Settings -> Allow LAN connections
 ```
 
 2. Make sure **SOCKS5 port** is `10808` (`Settings -> Allow LAN connections`)
