@@ -325,7 +325,7 @@ if [[ "$STAGE" == "2" ]]; then
     echo "Установка необходимых пакетов..."
     echo ""
 
-    apt-get update && apt-get install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron
+    apt-get update && apt-get install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron unattended-upgrades fail2ban
 
     echo ""
     echo "Удаление лишних зависимостей и очистка кэша пакетов..."
@@ -789,22 +789,6 @@ EOF
         echo "Периодический запуск скрипта аварийного перезапуска Rathole уже настроен!"
     else
         { echo "$CURRENT_CRON"; echo "$RATHOLE_WATCH_CRON_JOB"; } | crontab - >/dev/null
-    fi
-
-    echo "Настройка периодического запуска обновлений системы раз в неделю..."
-
-    CURRENT_CRON=$(crontab -l 2>/dev/null || true)
-
-    if [[ -z "$CURRENT_CRON" ]]; then
-        CURRENT_CRON=$(EDITOR=cat crontab -e 2>/dev/null || true)
-    fi
-
-    APT_UPGRADE_CRON_JOB="0    5 *    * 0 DEBIAN_FRONTEND=noninteractive apt-get update && apt-get upgrade -y -o Dpkg::Options::=\"--force-confdef\" -o Dpkg::Options::=\"--force-confold\" && apt-get autoremove --purge -y -o Dpkg::Options::=\"--force-confdef\" -o Dpkg::Options::=\"--force-confold\" && apt-get clean >/dev/null 2>&1"
-
-    if echo "$CURRENT_CRON" | grep -Fq "$APT_UPGRADE_CRON_JOB"; then
-        echo "Периодический запуск обновлений системы раз в неделю уже настроен!"
-    else
-        { echo "$CURRENT_CRON"; echo "$APT_UPGRADE_CRON_JOB"; } | crontab - >/dev/null
     fi
 
     echo "Настройка периодического запуска скрипта обновлений Happ Proxy раз в 2 недели..."
