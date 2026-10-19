@@ -26,7 +26,7 @@ dpkg -i "$HAPP_BIN" >/dev/null 2>&1 || true
 echo "Установка недостающих зависимостей и завершение обновления Happ Proxy..."
 
 apt-get update >/dev/null
-apt-get install -f -y >/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confold" -o Dpkg::Options::="--force-confdef" >/dev/null
 
 echo "Удаление лишних зависимостей и очистка кэша пакетов..."
 
