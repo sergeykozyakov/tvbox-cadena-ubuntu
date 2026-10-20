@@ -772,7 +772,7 @@ EOF
         chmod 644 "$HAPP_URGRADE_LOG_ROTATE_FILE" >/dev/null
         logrotate -f "$HAPP_URGRADE_LOG_ROTATE_FILE"
     else
-        echo "Ротация логов скрипта бновлений Happ Proxy уже настроена!"
+        echo "Ротация логов скрипта обновлений Happ Proxy уже настроена!"
     fi
 
     echo "Настройка периодического запуска (раз в 15 минут) скрипта аварийного перезапуска Rathole..."
@@ -807,10 +807,22 @@ EOF
         { echo "$CURRENT_CRON"; echo "$HAPP_UPGRADE_CRON_JOB"; } | crontab - >/dev/null
     fi
 
+    SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
+
+    echo ""
+    echo "Отключение входа для root через SSH..."
+
+    if grep -Eq "^[[:space:]]*PermitRootLogin[[:space:]]+no" "$SSHD_CONFIG_FILE"; then
+        echo "Вход для root через SSH уже отключен!"
+    elif grep -Eq "^[[:space:]]*#?[[:space:]]*PermitRootLogin" "$SSHD_CONFIG_FILE"; then
+        sed -i -E 's/^[[:space:]]*#?[[:space:]]*PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG_FILE"
+    else
+        echo "PermitRootLogin no" >> "$SSHD_CONFIG_FILE"
+    fi
+
     echo ""
     echo "Отключение вывода информации о последнем входе в баннере SSH..."
 
-    SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
     SSHD_CONFIG_DIR="/etc/ssh/sshd_config.d"
     SSHD_CONFIG_LASTLOG_FILE="00-disable-lastlog.conf"
 
