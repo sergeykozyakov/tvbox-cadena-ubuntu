@@ -332,6 +332,41 @@ if [[ "$STAGE" == "2" ]]; then
 
     apt-get autoremove --purge -y && apt-get clean
 
+    echo "Настройка автоматического обновления пакетов..."
+
+    UPDATER_CONFIG_FILE="/etc/apt/apt.conf.d/50unattended-upgrades"
+
+    mkdir -p "$(dirname "$UPDATER_CONFIG_FILE")"
+    touch "$UPDATER_CONFIG_FILE"
+
+    if grep -q "Unattended-Upgrade::Dpkg::Options" "$UPDATER_CONFIG_FILE" && grep -q -- "--force-confold" "$UPDATER_CONFIG_FILE"; then
+        echo "Настройка автоматического обновления пакетов уже выполнена!"
+    else
+        if grep -q '\${distro_codename}-updates' "$UPDATER_CONFIG_FILE"; then
+            sed -i '/\${distro_codename}-updates/s/^[[:space:]]*\/\///' "$UPDATER_CONFIG_FILE"
+        fi
+
+        if grep -q "Unattended-Upgrade::Automatic-Reboot" "$UPDATER_CONFIG_FILE"; then
+            sed -i 's|^//*[[:space:]]*Unattended-Upgrade::Automatic-Reboot ".*";|Unattended-Upgrade::Automatic-Reboot "true";|' "$UPDATER_CONFIG_FILE"
+        else
+            echo 'Unattended-Upgrade::Automatic-Reboot "true";' >> "$UPDATER_CONFIG_FILE"
+        fi
+
+        if grep -q "Unattended-Upgrade::Automatic-Reboot-Time" "$UPDATER_CONFIG_FILE"; then
+            sed -i 's|^//*[[:space:]]*Unattended-Upgrade::Automatic-Reboot-Time ".*";|Unattended-Upgrade::Automatic-Reboot-Time "02:00";|' "$UPDATER_CONFIG_FILE"
+        else
+            echo 'Unattended-Upgrade::Automatic-Reboot-Time "02:00";' >> "$UPDATER_CONFIG_FILE"
+        fi
+
+        tee -a "$UPDATER_CONFIG_FILE" > /dev/null << 'EOF'
+
+Unattended-Upgrade::Dpkg::Options {
+    "--force-confold";
+    "--force-confdef";
+};
+EOF
+    fi
+
     echo "Подготовка служб DHCP и точки доступа..."
 
     systemctl mask --now hostapd >/dev/null 2>&1
