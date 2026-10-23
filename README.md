@@ -18,8 +18,49 @@ Place all sh-install files (`install` directory) to your home directory. Use in 
 │   └── vpn-clear.sh             # stop proxy routing shell-script (use in service)
 ├── server/                      # (optional) SSH/RDP port-forwarding server settings (copy files as located)
 └── utils/                       # directory for tv-box every-day helpers
-    ├── restart-session.sh       # use it for RDP mode restore after hang-ups and for xray server quick restart
+    ├── restart-session.sh       # use it for RDP mode restore after hang-ups and for xray server quick restart     ├── show-upgraded-conf.sh    # show Unattended-Upgrades config files conflict list
     └── happ-info.conf           # show current xray server (gateway) name and settings
+```
+
+## Unattended-Upgrades sendmail settings
+
+In order to be informed about config upgrade conflicts (and to resolve them manually later) you may optionally put down some lines to configure notifications. By default, configs remain old ones with updated versions stored separately.
+
+```
+sudo apt update && sudo apt install -y msmtp
+sudo touch /var/log/msmtp.log && sudo chmod 666 /var/log/msmtp.log
+
+sudo ln -sf /usr/bin/msmtp /usr/sbin/sendmail
+sudo ln -sf /usr/bin/msmtp /usr/bin/sendmail
+
+sudo nano /etc/msmtprc
+```
+Add to empty file:
+```
+defaults
+auth             on
+tls              on
+tls_starttls     on
+tls_certcheck    off
+logfile          /var/log/msmtp.log
+
+account          example
+host             smtp.example.com
+port             587
+from             your_mail@example.com
+user             your_mail@example.com
+password         your_smtp_password
+
+account default : example.com
+```
+
+```
+sudo nano /etc/apt/apt.conf.d/50unattended-upgrades
+```
+Edit file (uncomment two lines):
+```
+Unattended-Upgrade::Mail "your_mail@example.com";
+Unattended-Upgrade::MailReport "only-on-error";
 ```
 
 ## Server additional settings (Debian/Ubuntu)
