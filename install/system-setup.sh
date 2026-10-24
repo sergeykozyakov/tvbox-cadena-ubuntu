@@ -766,7 +766,6 @@ ${RATHOLE_WATCH_LOG_FILE} {
 EOF
 
         chmod 644 "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null
-        logrotate -f "$RATHOLE_WATCH_LOG_ROTATE_FILE"
     else
         echo "Ротация логов скрипта аварийного перезапуска Rathole уже настроена!"
     fi
@@ -788,6 +787,27 @@ EOF
         echo "Скрипт обновлений Happ Proxy уже установлен!"
     fi
 
+    echo "Настройка ротации логов Happ Proxy..."
+
+    HAPP_LOG_FILE="/var/log/happd.log"
+    HAPP_LOG_ROTATE_FILE="/etc/logrotate.d/happd"
+
+    if [[ ! -f "$HAPP_LOG_ROTATE_FILE" ]]; then
+        tee "$HAPP_LOG_ROTATE_FILE" >/dev/null <<EOF
+${HAPP_LOG_FILE} {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+}
+EOF
+
+        chmod 644 "$HAPP_LOG_ROTATE_FILE" >/dev/null
+    else
+        echo "Ротация логов Happ Proxy уже настроена!"
+    fi
+
     echo "Настройка ротации логов скрипта обновлений Happ Proxy..."
 
     HAPP_URGRADE_LOG_FILE="/var/log/upgrade-happ.log"
@@ -805,7 +825,6 @@ ${HAPP_URGRADE_LOG_FILE} {
 EOF
 
         chmod 644 "$HAPP_URGRADE_LOG_ROTATE_FILE" >/dev/null
-        logrotate -f "$HAPP_URGRADE_LOG_ROTATE_FILE"
     else
         echo "Ротация логов скрипта обновлений Happ Proxy уже настроена!"
     fi

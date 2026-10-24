@@ -4,18 +4,22 @@ Ubuntu-based Wi-Fi Access Point settings scripts (xray gateway) for CADENA PRO X
 ## Source Ubuntu distrib
 Based on https://github.com/devmfc/debian-on-amlogic
 
+! You must have Ubuntu version with minimal graphic desktop installed on your tv-box !
+
 ## How to use
 To make all these sh-files executable do not forget to run `chmod +x *.sh` on their location directory.
-Place all sh-install files (`install` directory) to your home directory. Use in graphical mode.
+Place all sh-install files (`install` directory) to your home directory.
 
 ## Project structure
 
 ```
 ├── install/                     # directory for tv-box installation
-│   └── system-setup.sh          # run this script for installation
-├── proxy-dns/                   # directory for SOCKS5 + DNS over TLS installation (use README.MD)
-│   ├── vpn-routing.sh           # start proxy routing shell-script (use in service)
-│   └── vpn-clear.sh             # stop proxy routing shell-script (use in service)
+│   ├── system-setup.sh          # run this script for installation (non-root user in graphic mode ONLY!!!)
+│   ├── rathole-client-watch.sh  # SSH/RDP port-forwarding healthcheck/restart script (used by service)
+│   └── upgrade-happ.sh          # xray server (gateway) 2-weekly auto upgrades (used by service)
+├── proxy-dns/                   # directory for SOCKS5 + DNS over TLS installation (see README.MD inside)
+│   ├── vpn-routing.sh           # start proxy routing shell-script (used by service)
+│   └── vpn-clear.sh             # stop proxy routing shell-script (used by service)
 ├── server/                      # (optional) SSH/RDP port-forwarding server settings (copy files as located)
 └── utils/                       # directory for tv-box every-day helpers
     ├── restart-session.sh       # use it for RDP mode restore after hang-ups and for xray server quick restart     ├── show-upgraded-conf.sh    # show Unattended-Upgrades config files conflict list
@@ -26,6 +30,8 @@ Place all sh-install files (`install` directory) to your home directory. Use in 
 
 In order to be informed about config upgrade conflicts (and to resolve them manually later) you may optionally put down some lines to configure notifications. By default, configs remain old ones with updated versions stored separately.
 
+Install `msmtp`: set AppArmor support to **no**
+
 ```
 sudo apt update && sudo apt install -y msmtp
 sudo touch /var/log/msmtp.log && sudo chmod 666 /var/log/msmtp.log
@@ -35,7 +41,9 @@ sudo ln -sf /usr/bin/msmtp /usr/bin/sendmail
 
 sudo nano /etc/msmtprc
 ```
+
 Add to empty file:
+
 ```
 defaults
 auth             on
@@ -57,11 +65,32 @@ account default : example.com
 ```
 sudo nano /etc/apt/apt.conf.d/50unattended-upgrades
 ```
-Edit file (uncomment two lines):
+
+Edit file (uncomment or add lines):
+
 ```
-Unattended-Upgrade::Mail "your_mail@example.com";
+Unattended-Upgrade::Mail "yet_another_mail@example.com";
+Unattended-Upgrade::Sender "your_mail@example.com";
+
 Unattended-Upgrade::MailReport "only-on-error";
 ```
+
+```
+sudo nano /etc/logrotate.d/msmtp
+```
+
+Add to empty file:
+
+```
+/var/log/msmtp.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+}
+```
+
 
 ## Server additional settings (Debian/Ubuntu)
 
