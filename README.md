@@ -91,6 +91,19 @@ Add to empty file:
 }
 ```
 
+Edit `hosts` file:
+
+```
+sudo nano /etc/hosts
+```
+
+Place `localhost` right after your unique host name (important for mail subject):
+
+```
+# 127.0.0.1 localhost
+# 127.0.0.1 your-server-host
+127.0.0.1 your-server-host localhost
+```
 
 ## Server additional settings (Debian/Ubuntu)
 
