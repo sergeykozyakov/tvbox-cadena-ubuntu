@@ -30,7 +30,7 @@ Place all sh-install files (`install` directory) to your home directory.
 
 In order to be informed about config upgrade conflicts (and to resolve them manually later) you may optionally put down some lines to configure notifications. By default, configs remain old ones with updated versions stored separately.
 
-Install `msmtp`: set AppArmor support to **no**
+Install `msmtp` and choose **no** for `AppArmor` support
 
 ```
 sudo apt update && sudo apt install -y msmtp
@@ -42,7 +42,7 @@ sudo ln -sf /usr/bin/msmtp /usr/bin/sendmail
 sudo nano /etc/msmtprc
 ```
 
-Add to empty file:
+Add this to empty file:
 
 ```
 defaults
@@ -62,11 +62,13 @@ password         your_smtp_password
 account default : example.com
 ```
 
+Open the main `Unattended-Upgrades` config
+
 ```
 sudo nano /etc/apt/apt.conf.d/50unattended-upgrades
 ```
 
-Edit file (uncomment or add lines):
+Edit file (uncomment or add lines) like this:
 
 ```
 Unattended-Upgrade::Mail "yet_another_mail@example.com";
@@ -75,11 +77,13 @@ Unattended-Upgrade::Sender "your_mail@example.com";
 Unattended-Upgrade::MailReport "only-on-error";
 ```
 
+Create `logrotate` config for sent mails list
+
 ```
 sudo nano /etc/logrotate.d/msmtp
 ```
 
-Add to empty file:
+Add this to empty file:
 
 ```
 /var/log/msmtp.log {
@@ -91,7 +95,7 @@ Add to empty file:
 }
 ```
 
-Edit `hosts` file:
+Open system `hosts` file
 
 ```
 sudo nano /etc/hosts
@@ -105,6 +109,24 @@ Place `localhost` right after your unique host name (important for mail subject)
 127.0.0.1 your-server-host localhost
 ```
 
+In case you still have to use `AppArmor`, here is the code to force the log file permissions:
+
+```
+sudo nano /etc/apparmor.d/usr.bin.msmtp
+```
+
+Add this line to the bottom of the config (before the last `}`):
+
+```
+  /var/log/msmtp.log rwk,
+```
+
+Restart AppArmor daemon
+
+```
+sudo systemctl restart apparmor
+```
+
 ## Server additional settings (Debian/Ubuntu)
 
 You don't need an extra server (VPS/VDS) in case you have static (or dynamic via DynanicDNS) **global** IP address in your place. You just need to make SSH and RDP port forwarding on your router.
@@ -113,4 +135,7 @@ You don't need an extra server (VPS/VDS) in case you have static (or dynamic via
 https://github.com/rathole-org/rathole/releases/download/v0.4.8/rathole-aarch64-unknown-linux-musl.zip
 
 ### Crontab:
+
+```
 */15 * * * * /root/rathole-server-watch.sh --config /etc/rathole/server.toml --service rathole >/dev/null 2>&1
+```
