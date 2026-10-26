@@ -22,8 +22,7 @@ Place all sh-install files (`install` directory) to your home directory.
 │   └── vpn-clear.sh             # stop proxy routing shell-script (used by service)
 ├── server/                      # (optional) SSH/RDP port-forwarding server settings (copy files as located)
 └── utils/                       # directory for tv-box every-day helpers
-    ├── restart-session.sh       # use it for RDP mode restore after hang-ups and for xray server quick restart     ├── show-upgraded-conf.sh    # show Unattended-Upgrades config files conflict list
-    └── happ-info.conf           # show current xray server (gateway) name and settings
+    ├── restart-session.sh       # use it for RDP mode restore after hang-ups and for xray server quick restart     └── show-upgraded-conf.sh    # show Unattended-Upgrades config files conflict list
 ```
 
 ## Unattended-Upgrades sendmail settings
@@ -125,6 +124,12 @@ Restart AppArmor daemon
 
 ```
 sudo systemctl restart apparmor
+```
+
+Now you can also add an `--email` argument to `upgrade-happ.sh` script to receice e-mails about upgrade errors:
+
+```
+sudo ./upgrade-happ.sh --email yet_another_mail@example.com >> upgrade_history.log 2>&1
 ```
 
 ## Server additional settings (Debian/Ubuntu)

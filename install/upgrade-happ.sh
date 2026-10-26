@@ -1,8 +1,26 @@
 #!/bin/bash
 
-set -e
+if [[ "$1" = "--email" ]] && [[ -n "$2" ]]; then
+  MAIL_TO="$2"
+fi
 
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+trap '
+if [[ -n "$MAIL_TO" ]] && command -v sendmail >/dev/null 2>&1; then
+  SUBJECT="[$HOSTNAME] Ошибка при автообновлении Happ Proxy"
+  ENCODED_SUBJECT="=?UTF-8?B?$(echo -n "$SUBJECT" | base64 -w 0)?="
+
+  sendmail -t <<EOF
+To: $MAIL_TO
+Subject: $ENCODED_SUBJECT
+
+Произошла ошибка при обновлении Happ Proxy на хосте $HOSTNAME.
+Проблема возникла при выполнении команды $BASH_COMMAND в скрипте автообновления!
+EOF
+fi
+
+echo "Произошла ошибка при обновлении Happ Proxy в команде $BASH_COMMAND скрипта автообновления!"
+exit 1
+' ERR
 
 if [[ "$EUID" -ne 0 ]]; then
   echo "Пожалуйста, запустите скрипт с правами sudo: sudo $0"
@@ -40,5 +58,3 @@ echo "Графическая сессия gdm3 сейчас будет пере�
 echo ""
 
 systemctl restart gdm3 >/dev/null 2>&1
-
-exit 0
