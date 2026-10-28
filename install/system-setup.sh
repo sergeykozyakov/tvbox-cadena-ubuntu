@@ -1,10 +1,5 @@
 #!/bin/bash
 
-trap '
-echo "Произошла аварийная остановка скрипта настройки системы!"
-exit 1
-' ERR
-
 # Файл для хранения контекста между этапами
 STAGE_FILE="setup-stage.tmp"
 
@@ -28,7 +23,13 @@ DEF_RATHOLE_HOST="X.X.X.X"
 DEF_RATHOLE_PORT="X"
 DEF_RATHOLE_TOKEN="XXXXXXXXXXXXX"
 
-# Функция генерации UUID
+# Перехват ошибок скриптв
+trap '
+echo "ОШИБКА! Произошла аварийная остановка скрипта настройки системы"
+exit 1
+' ERR
+
+# Функция генерации UUID для настройки сети
 generate_uuid() {
     if command -v uuidgen >/dev/null 2>&1; then
         uuidgen
@@ -37,51 +38,57 @@ generate_uuid() {
     fi
 }
 
-if [[ ! -f "$STAGE_FILE" ]]; then
-    clear
-    echo "========================================================================="
-    echo "  Настройка системы для приставок CADENA Pro X (Ubuntu)                  "
-    echo "========================================================================="
-    echo ""
-    echo "=== [ЭТАП 1] Первоначальная настройка ==="
-    echo ""
+###################################################################################################
 
+if [[ "$USER" == "root" ]]; then
+    echo "ОШИБКА! Запуск этого скрипта должен выполняться в терминале обычного пользователя"
+    exit 1
+fi
+
+if [[ ! -f "$STAGE_FILE" ]]; then
     if ! command -v sudo >/dev/null 2>&1; then
         echo ""
-        echo "Утилита sudo отсутствует в системе. Выполняется ее установка через root..." 1>&2
+        echo "Утилита sudo отсутствует в системе! Выполняется установка утилиты от имени пользователя root..."
         echo ""
 
-        CURRENT_USER="${USER:-$(id -un)}"
-
-        if su -c "apt-get update && apt-get install sudo -y && usermod -aG sudo $CURRENT_USER"; then
+        if su -c "apt-get update && apt-get install sudo -y && usermod -aG sudo $USER"; then
             echo ""
             echo "Утилита sudo успешно установлена!"
+
             echo ""
-            echo "Выполняется установка нового пароля для root..."
-            echo ""
-            echo "Сначала введите текущий пароль, затем новый пароль и его подтверждение."
+            echo "Рекомендуется установить новый пароль для root!"
+            echo "Сначала введите текущий пароль, затем новый пароль и его подтверждение"
 
             su -c "passwd root"
 
             echo ""
-            echo "Настройка sudo завершена. Перезагрузка..."
-            echo "После перезагрузки, запустите этот скрипт еще раз с расширенными правами пользователя: sudo $0"
+            echo "Настройка sudo завершена!"
+            echo "Перезапуск терминала от имени пользователя root..."
+            echo ""
+
+            SCRIPT_PATH=$(realpath "$0")
 
             sleep 3
-            reboot
+            exec su -l root -c "bash '$SCRIPT_PATH'"
             exit 0
         else
-            echo "ОШИБКА! Не удалось установить sudo. Скрипт завершен!" 1>&2
+            echo "ОШИБКА! Не удалось установить sudo. Настройка будет прервана"
             exit 1
         fi
     fi
-
-    # ================================================================================ #
 
     if [[ "$EUID" -ne 0 ]]; then
         echo "Пожалуйста, запустите скрипт с расширенными правами пользователя: sudo $0"
         exit 1
     fi
+
+    clear
+    echo "========================================================================="
+    echo "                Настройка системы CADENA Hub Ubuntu                      "
+    echo "========================================================================="
+    echo ""
+    echo "=== [ЭТАП 1] Первоначальная настройка ==="
+    echo ""
 
     echo "Настройка автовхода в систему от имени текущего пользователя..."
 
@@ -89,7 +96,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
     if [[ -f "$GDM_CONFIG_FILE" ]]; then
         if grep -v "^[[:space:]]*#" "$GDM_CONFIG_FILE" | grep -E -q "^[[:space:]]*AutomaticLoginEnable[[:space:]]*=[[:space:]]*true" && \
-           grep -v "^[[:space:]]*#" "$GDM_CONFIG_FILE" | grep -E -q "^[[:space:]]*AutomaticLogin[[:space:]]*=[[:space:]]*${SUDO_USER:-$USER}"; then
+           grep -v "^[[:space:]]*#" "$GDM_CONFIG_FILE" | grep -E -q "^[[:space:]]*AutomaticLogin[[:space:]]*=[[:space:]]*$USER"; then
             echo "Автовход в систему от имени текущего пользователя уже настроен!"
         else
             if ! grep -q "^[[:space:]]*\[daemon\]" "$GDM_CONFIG_FILE"; then
@@ -101,7 +108,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
             fi
 
             if grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLogin[[:space:]]*=" "$GDM_CONFIG_FILE"; then
-                sed -i -E "s/^#?\s*AutomaticLogin\s*=\s*.*/AutomaticLogin = ${SUDO_USER:-$USER}/" "$GDM_CONFIG_FILE"
+                sed -i -E "s/^#?\s*AutomaticLogin\s*=\s*.*/AutomaticLogin = $USER/" "$GDM_CONFIG_FILE"
             fi
 
             if ! grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLoginEnable" "$GDM_CONFIG_FILE"; then
@@ -109,11 +116,11 @@ if [[ ! -f "$STAGE_FILE" ]]; then
             fi
 
             if ! grep -E -q "^[[:space:]]*#\?[[:space:]]*AutomaticLogin[[:space:]]*=" "$GDM_CONFIG_FILE"; then
-                sed -i "/^[[:space:]]*AutomaticLoginEnable/a AutomaticLogin = ${SUDO_USER:-$USER}" "$GDM_CONFIG_FILE"
+                sed -i "/^[[:space:]]*AutomaticLoginEnable/a AutomaticLogin = $USER" "$GDM_CONFIG_FILE"
             fi
         fi
     else
-        echo "Файл $GDM_CONFIG_FILE не найден. Пропуск этапа..."
+        echo "Файл $GDM_CONFIG_FILE не найден! Пропуск этапа..."
     fi
 
     echo ""
@@ -131,6 +138,9 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     else
         echo "Русский язык в консоли уже настроен!"
     fi
+
+    echo ""
+    echo "--- Настройка основных параметров системы ---"
 
     read -p "Имя компьютера [$DEF_HOSTNAME]: " NEW_HOSTNAME; NEW_HOSTNAME="${NEW_HOSTNAME:-$DEF_HOSTNAME}"
     read -p "Часовой пояс [$DEF_TIMEZONE]: " TIMEZONE; TIMEZONE="${TIMEZONE:-$DEF_TIMEZONE}"
@@ -209,7 +219,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
         timedatectl set-timezone "$TIMEZONE"
     fi
 
-    USER_RUN="sudo -u ${SUDO_USER:-$USER} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus"
+    USER_RUN="sudo -u $USER DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u $USER)/bus"
 
     echo  "Установка русской раскладки клавиатуры..."
 
@@ -220,13 +230,15 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     fi
 
     echo ""
-    echo "=== Сейчас откроется интерфейс настройки локализации! Выберите и примените везде русский язык и возвращайтесь в это окно. Для начала настройки нажмите [Enter]... ==="
+    echo "Сейчас откроется интерфейс настройки локализации"
+    echo "Выберите и примените везде русский язык и возвращайтесь в это окно"
+    echo ""
 
-    read -p ""
+    read -p "Для продолжения нажмите [Enter]..."
 
     if type -p gnome-language-selector >/dev/null; then
         if [[ -z "$DISPLAY" ]] && [[ -z "$WAYLAND_DISPLAY" ]]; then
-            echo "ВНИМАНИЕ: Графическая утилита настройки языка не может быть запущена в консольном режиме! Шаг будет пропущен."
+            echo "Графическая утилита настройки языка не может быть запущена в консольном режиме! Шаг будет пропущен"
 
             read -p "Нажмите [Enter] для перезагрузки..."
         else
@@ -235,8 +247,8 @@ if [[ ! -f "$STAGE_FILE" ]]; then
             read -p "Когда полностью завершите настройку русского языка в графическом окне, нажмите [Enter] для перезагрузки..."
         fi
     else
-        echo "ВНИМАНИЕ: Графическая утилита настройки языка не найдена в системе!"
-        echo "Пожалуйста, найдите её самостоятельно через главное меню: «Параметры» -> «Язык и регион»."
+        echo "Графическая утилита настройки языка не найдена в системе!"
+        echo "Пожалуйста, найдите её самостоятельно через главное меню: «Параметры» -> «Язык и регион»"
 
         read -p "После того как примените русский язык везде, вернитесь в это окно и нажмите [Enter] для перезагрузки..."
     fi
@@ -253,7 +265,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     exit 0
 fi
 
-# ================================================================================ #
+###################################################################################################
 
 if [[ "$EUID" -ne 0 ]]; then
     echo "Пожалуйста, запустите скрипт с расширенными правами пользователя: sudo $0"
@@ -265,7 +277,7 @@ source "$STAGE_FILE"
 if [[ "$STAGE" == "2" ]]; then
     clear
     echo "========================================================================="
-    echo "  Настройка системы для приставок CADENA Pro X (Ubuntu)                  "
+    echo "                Настройка системы CADENA Hub Ubuntu                      "
     echo "========================================================================="
     echo ""
     echo "=== [ЭТАП 2] Продолжение настройки системы ==="
@@ -275,14 +287,7 @@ if [[ "$STAGE" == "2" ]]; then
     SWAP_FILE="/swapfile"
 
     if [[ ! -f "$SWAP_FILE" ]]; then
-        if ! fallocate -l "$SWAP_SIZE" "$SWAP_FILE" 2>/dev/null; then
-            echo "fallocate не поддерживается файловой системой. Используется dd..."
-
-            RAW_SIZE=$(echo "$SWAP_SIZE" | sed 's/[GgMm]//g')
-            COUNT_MB=$(( RAW_SIZE * 1024 ))
-            dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$COUNT_MB status=progress
-        fi
-
+        fallocate -l "$SWAP_SIZE" "$SWAP_FILE" 2>/dev/null
         chmod 600 "$SWAP_FILE"
         mkswap "$SWAP_FILE" >/dev/null
     else
@@ -627,7 +632,8 @@ EOF
     fi
 
     echo ""
-    echo "=== Запустите Happ, введите ключ, настройте автозапуск при старте системы и автоподключение к последней локации, выберите и подключите желаемую локацию с лучшим пингом в PROXY-режиме и возвращайтесь в это окно. ==="
+    echo "Запустите Happ Proxy вручную, введите ключ, настройте автозапуск при старте системы и автоподключение к последней локации"
+    echo "Выберите и подключите желаемую локацию с лучшим пингом в PROXY-режиме и возвращайтесь в это окно"
     echo ""
 
     read -p "После настройки Happ нажмите [Enter]..."
@@ -746,7 +752,7 @@ EOF
             cp "$RATHOLE_WATCH_SH" /root/"
             rm -f "$RATHOLE_WATCH_SH"
         else
-            echo "ОШИБКА! Скрипт аварийного перезапуска Rathole ($RATHOLE_WATCH_SH) не найден в текущей папке! Настройка будет прервана." 1>&2
+            echo "ОШИБКА! Скрипт аварийного перезапуска Rathole ($RATHOLE_WATCH_SH) не найден в текущей папке! Настройка будет прервана"
             exit 1
         fi
     else
@@ -784,7 +790,7 @@ EOF
             cp "$HAPP_URGRADE_SH" /root/
             rm -f "$HAPP_URGRADE_SH"
         else
-            echo "ОШИБКА! Скрипт обновлений Happ Proxy ($HAPP_URGRADE_SH) не найден в текущей папке! Настройка будет прервана." 1>&2
+            echo "ОШИБКА! Скрипт обновлений Happ Proxy ($HAPP_URGRADE_SH) не найден в текущей папке! Настройка будет прервана"
             exit 1
         fi
     else
@@ -943,21 +949,27 @@ EOF
         echo "Удаленный доступ к рабочему столу (RDP) уже включен и работает!"
     else
         if [[ -z "$DISPLAY" ]] && [[ -z "$WAYLAND_DISPLAY" ]]; then
-            echo "ВНИМАНИЕ: Графическая утилита настройки удаленного рабочего стола не может быть запущена в консольном режиме! Шаг будет пропущен."
+            echo "Графическая утилита настройки удаленного рабочего стола не может быть запущена в консольном режиме! Шаг будет пропущен"
 
             read -p "Нажмите [Enter] для продолжения..."
         else
-            echo "Удаленный доступ к рабочему столу (RDP) неактивен! Требуется настройка..."
+            echo "Удаленный доступ к рабочему столу (RDP) неактивен! Требуется настройка"
+
             echo ""
-            echo "=== Будут открыты графические настройки удаленного рабочего стола. По окончании настройки закройте их и вернитесь в это окно. Для начала настройки нажмите [Enter] ==="
+            echo "Сейчас будут открыты графические настройки удаленного рабочего стола"
+            echo "По окончании настройки закройте их и вернитесь в это окно"
+            echo ""
+
+            read -p "Нажмите [Enter] для продолжения..."
 
             if type -p gnome-control-center >/dev/null; then
-                sudo -u "${SUDO_USER:-$USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u ${SUDO_USER:-$USER})/bus" \
+                sudo -u "$USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USER)/bus" \
                 gnome-control-center system remote-desktop >/dev/null 2>&1 &
 
                 read -p "Когда полностью завершите настройку удаленного рабочего стола в графическом окне, нажмите [Enter] для продолжения..."
             else
-                echo "ВНИМАНИЕ: Графическая утилита настройки удаленного рабочего стола не найдена в системе! Шаг будет пропущен."
+                echo "Графическая утилита настройки удаленного рабочего стола не найдена в системе! Шаг будет пропущен"
+                echo ""
 
                 read -p "Нажмите [Enter] для продолжения..."
             fi
