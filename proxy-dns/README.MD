@@ -66,8 +66,8 @@ sudo cp secure-dns.conf /etc/NetworkManager/dnsmasq.d/
 10. Make prepared scripts executable:
 
 ```
-sudo chmod +x /usr/local/bin/vpn-routing.sh
-sudo chmod +x /usr/local/bin/vpn-clear.sh
+sudo chmod +x /usr/local/bin/vpn-routing-start.sh
+sudo chmod +x /usr/local/bin/vpn-routing-stop.sh
 ```
 
 11. Restart all dependend services:

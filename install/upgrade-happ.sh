@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [[ "$1" = "--email" ]] && [[ -n "$2" ]]; then
+if [[ "$1" == "--email" ]] && [[ -n "$2" ]]; then
   MAIL_TO="$2"
 fi
 

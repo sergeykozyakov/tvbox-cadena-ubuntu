@@ -6,8 +6,8 @@ Wants=network-online.target redsocks.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/bin/vpn-routing.sh
-ExecStopPost=/usr/local/bin/vpn-clear.sh
+ExecStart=/usr/local/bin/vpn-routing-start.sh
+ExecStopPost=/usr/local/bin/vpn-routing-stop.sh
 
 [Install]
 WantedBy=multi-user.target

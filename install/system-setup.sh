@@ -223,7 +223,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
     CURRENT_HOSTNAME=$(hostname)
 
-    if [[ "$CURRENT_HOSTNAME" = "$NEW_HOSTNAME" ]]; then
+    if [[ "$CURRENT_HOSTNAME" == "$NEW_HOSTNAME" ]]; then
         echo "Имя компьютера уже изменено!"
     else
         sed -i "s/\b${CURRENT_HOSTNAME}\b/${NEW_HOSTNAME}/g" /etc/hosts
@@ -234,7 +234,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
     CURRENT_TIMEZONE=$(timedatectl show --property=Timezone --value)
 
-    if [[ "$CURRENT_TIMEZONE" = "$TIMEZONE" ]]; then
+    if [[ "$CURRENT_TIMEZONE" == "$TIMEZONE" ]]; then
         echo "Часовой пояс уже установлен!"
     else
         timedatectl set-timezone "$TIMEZONE"
@@ -807,7 +807,7 @@ EOF
 
     echo "Установка скрипта обновлений Happ Proxy..."
 
-    HAPP_URGRADE_SH="upgrade-happ.sh"
+    HAPP_URGRADE_SH="happ-upgrade.sh"
 
     if [[ ! -f "$SYSTEM_BIN_DIR/$HAPP_URGRADE_SH" ]]; then
         if [[ -f "$HAPP_URGRADE_SH" ]]; then
@@ -845,8 +845,8 @@ EOF
 
     echo "Настройка ротации логов скрипта обновлений Happ Proxy..."
 
-    HAPP_URGRADE_LOG_FILE="/var/log/upgrade-happ.log"
-    HAPP_URGRADE_LOG_ROTATE_FILE="/etc/logrotate.d/upgrade-happ"
+    HAPP_URGRADE_LOG_FILE="/var/log/happ-upgrade.log"
+    HAPP_URGRADE_LOG_ROTATE_FILE="/etc/logrotate.d/happ-upgrade"
 
     if [[ ! -f "$HAPP_URGRADE_LOG_ROTATE_FILE" ]]; then
         tee "$HAPP_URGRADE_LOG_ROTATE_FILE" >/dev/null <<EOF
