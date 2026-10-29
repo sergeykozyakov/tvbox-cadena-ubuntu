@@ -6,6 +6,9 @@ STAGE_FILE="setup-stage.tmp"
 # Каталог хранения исполняемых файлов системы
 SYSTEM_BIN_DIR="/usr/local/bin"
 
+# Хост для маршрута, если Rathole отключен
+NO_RATHOLE_HOST="9.9.9.9"
+
 # Параметры системы по умолчанию
 DEF_HOSTNAME="cadena"
 DEF_TIMEZONE="Europe/Moscow"
@@ -19,9 +22,10 @@ DEF_HOTSPOT_SSID="cadena-ap"
 DEF_HOTSPOT_PASS="MySecretPassword"
 
 # Настройки Rathole по умолчанию
-DEF_RATHOLE_HOST="X.X.X.X"
-DEF_RATHOLE_PORT="X"
-DEF_RATHOLE_TOKEN="XXXXXXXXXXXXX"
+DEF_NEED_RATHOLE=true
+DEF_RATHOLE_HOST="10.10.10.10"
+DEF_RATHOLE_PORT="23200"
+DEF_RATHOLE_TOKEN="MySecretToken"
 
 # Перехват ошибок скриптв
 trap '
@@ -29,7 +33,7 @@ echo "ОШИБКА! Произошла аварийная остановка с�
 exit 1
 ' ERR
 
-# Функция генерации UUID для настройки сети
+# Функция генерации UUID
 generate_uuid() {
     if command -v uuidgen >/dev/null 2>&1; then
         uuidgen
@@ -41,7 +45,8 @@ generate_uuid() {
 ###################################################################################################
 
 if [[ "$USER" == "root" ]]; then
-    echo "ОШИБКА! Запуск этого скрипта должен выполняться в терминале обычного пользователя"
+    echo "ОШИБКА! Этот скрипт не может выполняться напрямую от пользователя root"
+    echo "Запустите скрипт от имени обычного пользователя или с утилитой sudo"
     exit 1
 fi
 
@@ -62,14 +67,9 @@ if [[ ! -f "$STAGE_FILE" ]]; then
             su -c "passwd root"
 
             echo ""
-            echo "Настройка sudo завершена!"
-            echo "Перезапуск терминала от имени пользователя root..."
-            echo ""
+            echo "Настройка sudo завершена! Пожалуйста, завершите сеанс консоли"
+            echo "Затем запустите в новой сессии консоли данный скрипт с расширенными правами пользователя: sudo $0"
 
-            SCRIPT_PATH=$(realpath "$0")
-
-            sleep 3
-            exec su -l root -c "bash '$SCRIPT_PATH'"
             exit 0
         else
             echo "ОШИБКА! Не удалось установить sudo. Настройка будет прервана"
@@ -178,9 +178,21 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     echo ""
     echo "--- Настройка удаленного доступа Rathole ---"
 
-    read -p "IP-адрес сервера [$DEF_RATHOLE_HOST]: " RATHOLE_HOST; RATHOLE_HOST="${RATHOLE_HOST:-$DEF_RATHOLE_HOST}"
-    read -p "Порт сервера [$DEF_RATHOLE_PORT]: " RATHOLE_PORT; RATHOLE_PORT="${RATHOLE_PORT:-$DEF_RATHOLE_PORT}"
-    read -p "Секретный токен [$DEF_RATHOLE_TOKEN]: " RATHOLE_TOKEN; RATHOLE_TOKEN="${RATHOLE_TOKEN:-$DEF_RATHOLE_TOKEN}"
+    read -p "Установить службу удаленного доступа Rathole для SSH и RDP (для администрирования при сером IP)? [Y/n]: " NEED_RATHOLE
+
+    NEED_RATHOLE="${NEED_RATHOLE:-$DEF_NEED_RATHOLE}"
+
+    if [[ "$NEED_RATHOLE" =~ ^[YyДд]$ || "$NEED_RATHOLE" == "true" ]]; then
+        NEED_RATHOLE=true
+
+        read -p "IP-адрес сервера [$DEF_RATHOLE_HOST]: " RATHOLE_HOST; RATHOLE_HOST="${RATHOLE_HOST:-$DEF_RATHOLE_HOST}"
+        read -p "Порт сервера [$DEF_RATHOLE_PORT]: " RATHOLE_PORT; RATHOLE_PORT="${RATHOLE_PORT:-$DEF_RATHOLE_PORT}"
+        read -p "Секретный токен [$DEF_RATHOLE_TOKEN]: " RATHOLE_TOKEN; RATHOLE_TOKEN="${RATHOLE_TOKEN:-$DEF_RATHOLE_TOKEN}"
+    else
+        NEED_RATHOLE=false
+
+        echo "Вы отменили установку Rathole! Шаг будет пропущен"
+    fi
 
     echo ""
     echo "Сохранение введенных параметров в контекст процесса настройки..."
@@ -194,9 +206,18 @@ if [[ ! -f "$STAGE_FILE" ]]; then
     echo "CLIENT_GATEWAY=\"$CLIENT_GATEWAY\"" >> "$STAGE_FILE"
     echo "HOTSPOT_SSID=\"$HOTSPOT_SSID\"" >> "$STAGE_FILE"
     echo "HOTSPOT_PASS=\"$HOTSPOT_PASS\"" >> "$STAGE_FILE"
-    echo "RATHOLE_HOST=\"$RATHOLE_HOST\"" >> "$STAGE_FILE"
-    echo "RATHOLE_PORT=\"$RATHOLE_PORT\"" >> "$STAGE_FILE"
-    echo "RATHOLE_TOKEN=\"$RATHOLE_TOKEN\"" >> "$STAGE_FILE"
+    echo "NEED_RATHOLE=\"$NEED_RATHOLE\"" >> "$STAGE_FILE"
+
+    if [[ "$NEED_RATHOLE" == "true" ]]; then
+        echo "RATHOLE_HOST=\"$RATHOLE_HOST\"" >> "$STAGE_FILE"
+        echo "RATHOLE_PORT=\"$RATHOLE_PORT\"" >> "$STAGE_FILE"
+        echo "RATHOLE_TOKEN=\"$RATHOLE_TOKEN\"" >> "$STAGE_FILE"
+    else
+        echo "RATHOLE_HOST=\"\"" >> "$STAGE_FILE"
+    fi
+
+    echo ""
+    echo "--- Настройка системного окружения ---"
 
     echo "Изменение имени компьютера..."
 
@@ -257,7 +278,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
     echo "------------------------------------------------"
     echo "Первый этап завершен. Перезагрузка..."
-    echo "После перезапуска запустите этот скрипт еще раз."
+    echo "После перезапуска запустите этот скрипт еще раз"
     echo "------------------------------------------------"
 
     sleep 3
@@ -334,7 +355,8 @@ if [[ "$STAGE" == "2" ]]; then
     echo "Установка необходимых пакетов..."
     echo ""
 
-    apt-get update && apt-get install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip gnome-remote-desktop fastfetch logrotate cron unattended-upgrades fail2ban
+    apt-get update && apt-get install -y libopengl0 network-manager network-manager-gnome hostapd dnsmasq iw curl unzip \
+    gnome-remote-desktop fastfetch logrotate cron unattended-upgrades fail2ban
 
     echo ""
     echo "Удаление лишних зависимостей и очистка кэша пакетов..."
@@ -393,7 +415,7 @@ EOF
     NETPLAN_ETH_UUID="$UUID_ETH"
     NETPLAN_ETH_NEED_UPDATE=true
 
-    if [[ -f "$NETPLAN_ETH_FILE" ]] && grep -q "$RATHOLE_HOST" "$NETPLAN_ETH_FILE" 2>/dev/null; then
+    if [[ -f "$NETPLAN_ETH_FILE" ]] && grep -q "$CLIENT_GATEWAY" "$NETPLAN_ETH_FILE" 2>/dev/null; then
         echo "Файл настройки проводной сети (eth0 -> Wired) уже обновлен!"
 
         NETPLAN_ETH_NEED_UPDATE=false
@@ -428,7 +450,7 @@ network:
       ipv6-address-generation: "stable-privacy"
       wakeonlan: true
       routes:
-      - to: ${RATHOLE_HOST}/32
+      - to: ${RATHOLE_HOST:-$NO_RATHOLE_HOST}/32
         via: ${CLIENT_GATEWAY}
         metric: 5
       networkmanager:
@@ -450,7 +472,7 @@ EOF
     NETPLAN_CLIENT_UUID="$UUID_CLIENT"
     NETPLAN_CLIENT_NEED_UPDATE=true
 
-    if [[ -f "$NETPLAN_CLIENT_FILE" ]] && grep -q "$RATHOLE_HOST" "$NETPLAN_CLIENT_FILE" 2>/dev/null; then
+    if [[ -f "$NETPLAN_CLIENT_FILE" ]] && grep -q "$CLIENT_SSID" "$NETPLAN_CLIENT_FILE" 2>/dev/null; then
         echo "Файл настройки клиентского Wi-Fi (wlan0 -> Client) уже обновлен!"
 
         NETPLAN_CLIENT_NEED_UPDATE=false
@@ -496,7 +518,7 @@ network:
               ipv6.ip6-privacy: "-1"
               proxy._: ""
       routes:
-      - to: ${RATHOLE_HOST}/32
+      - to: ${RATHOLE_HOST:-$NO_RATHOLE_HOST}/32
         via: ${CLIENT_GATEWAY}
         metric: 10
       networkmanager:
@@ -638,48 +660,50 @@ EOF
 
     read -p "После настройки Happ нажмите [Enter]..."
 
-    echo ""
-    echo "Загрузка zip-архива Rathole..."
 
-    RATHOLE_BIN="rathole"
-    RATHOLE_ZIP="rathole-aarch64-unknown-linux-musl.zip"
-    RATHOLE_URL="https://github.com/rathole-org/rathole/releases/download/v0.4.8/$RATHOLE_ZIP"
+    if [[ "$NEED_RATHOLE" == "true" ]]; then
+        echo ""
+        echo "Загрузка zip-архива Rathole..."
 
-    if [[ ! -f "$SYSTEM_BIN_DIR/$RATHOLE_BIN" ]]; then
-        if [[ ! -f "$RATHOLE_BIN" ]]; then
-            if [[ ! -f "$RATHOLE_ZIP" ]]; then
-                curl -SL "$RATHOLE_URL" -o "$RATHOLE_ZIP"
+        RATHOLE_BIN="rathole"
+        RATHOLE_ZIP="rathole-aarch64-unknown-linux-musl.zip"
+        RATHOLE_URL="https://github.com/rathole-org/rathole/releases/download/v0.4.8/$RATHOLE_ZIP"
+
+        if [[ ! -f "$SYSTEM_BIN_DIR/$RATHOLE_BIN" ]]; then
+            if [[ ! -f "$RATHOLE_BIN" ]]; then
+                if [[ ! -f "$RATHOLE_ZIP" ]]; then
+                    curl -SL "$RATHOLE_URL" -o "$RATHOLE_ZIP"
+                else
+                    echo "Zip-архив Rathole уже существует! Распаковка..."
+                fi
+
+                unzip "$RATHOLE_ZIP" >/dev/null
+                chmod +x "$RATHOLE_BIN"
+
+                echo "Исполняемый файл Rathole распакован из zip-архива!"
             else
-                echo "Zip-архив Rathole уже существует! Распаковка..."
+                echo "Исполняемый файл Rathole уже загружен и распакован из zip-архива!"
             fi
 
-            unzip "$RATHOLE_ZIP" >/dev/null
-            chmod +x "$RATHOLE_BIN"
+            echo "Установка исполняемого файла Rathole..."
 
-            echo "Исполняемый файл Rathole распакован из zip-архива!"
+            cp "$RATHOLE_BIN" "$SYSTEM_BIN_DIR/"
+            rm -f "$RATHOLE_BIN"
         else
-            echo "Исполняемый файл Rathole уже загружен и распакован из zip-архива!"
+            echo "Исполняемый файл Rathole уже установлен!"
         fi
 
-        echo "Установка исполняемого файла Rathole..."
+        echo ""
+        echo "Создание клиентской конфигурации Rathole..."
 
-        cp "$RATHOLE_BIN" "$SYSTEM_BIN_DIR/"
-        rm -f "$RATHOLE_BIN"
-    else
-        echo "Исполняемый файл Rathole уже установлен!"
-    fi
+        RATHOLE_CONFIG_DIR="/etc/rathole"
+        RATHOLE_CONFIG_FILE="client.toml"
+        RATHOLE_SERVICE="rathole"
 
-    echo ""
-    echo "Создание клиентской конфигурации Rathole..."
+        mkdir -p "$RATHOLE_CONFIG_DIR"
 
-    RATHOLE_CONFIG_DIR="/etc/rathole"
-    RATHOLE_CONFIG_FILE="client.toml"
-    RATHOLE_SERVICE="rathole"
-
-    mkdir -p "$RATHOLE_CONFIG_DIR"
-
-    if [[ ! -f "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" ]]; then
-        tee "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null <<EOF
+        if [[ ! -f "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" ]]; then
+            tee "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null <<EOF
 [client]
 remote_addr = "${RATHOLE_HOST}:${RATHOLE_PORT}"
 heartbeat_timeout = 40
@@ -702,17 +726,17 @@ token = "${RATHOLE_TOKEN}"
 nodelay = true
 EOF
 
-        chmod 644 "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null
-    else
-        echo "Файл клиентской конфигурации Rathole уже существует!"
-    fi
+            chmod 644 "$RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE" >/dev/null
+        else
+            echo "Файл клиентской конфигурации Rathole уже существует!"
+        fi
 
-    echo "Создание системной службы Rathole..."
+        echo "Создание системной службы Rathole..."
 
-    SYSTEM_SERVICES_DIR="/etc/systemd/system"
+        SYSTEM_SERVICES_DIR="/etc/systemd/system"
 
-    if [[ ! -f "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" ]]; then
-        tee "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null <<EOF
+        if [[ ! -f "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" ]]; then
+            tee "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null <<EOF
 [Unit]
 Description=Rathole Client Service
 After=network-online.target
@@ -729,43 +753,43 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-        chmod 644 "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null
-    else
-        echo "Системная служба Rathole уже существует!"
-    fi
-
-    echo "Запуск системной службы Rathole..."
-
-    if systemctl is-active --quiet "$RATHOLE_SERVICE"; then
-        echo "Системная служба Rathole уже запущена!"
-    else
-        systemctl enable --now "$RATHOLE_SERVICE" >/dev/null 2>&1
-    fi
-
-    echo "Установка скрипта аварийного перезапуска Rathole..."
-
-    RATHOLE_WATCH_SH="rathole-client-watch.sh"
-
-    if [[ ! -f "/root/$RATHOLE_WATCH_SH" ]]; then
-        if [[ -f "$RATHOLE_WATCH_SH" ]]; then
-            chmod +x "$RATHOLE_WATCH_SH"
-            cp "$RATHOLE_WATCH_SH" /root/"
-            rm -f "$RATHOLE_WATCH_SH"
+            chmod 644 "$SYSTEM_SERVICES_DIR/$RATHOLE_SERVICE.service" >/dev/null
         else
-            echo "ОШИБКА! Скрипт аварийного перезапуска Rathole ($RATHOLE_WATCH_SH) не найден в текущей папке! Настройка будет прервана"
-            exit 1
+            echo "Системная служба Rathole уже существует!"
         fi
-    else
-        echo "Скрипт аварийного перезапуска Rathole уже установлен!"
-    fi
 
-    echo "Настройка ротации логов скрипта аварийного перезапуска Rathole..."
+        echo "Запуск системной службы Rathole..."
 
-    RATHOLE_WATCH_LOG_FILE="/var/log/rathole-client-watch.log"
-    RATHOLE_WATCH_LOG_ROTATE_FILE="/etc/logrotate.d/rathole-client-watch"
+        if systemctl is-active --quiet "$RATHOLE_SERVICE"; then
+            echo "Системная служба Rathole уже запущена!"
+        else
+            systemctl enable --now "$RATHOLE_SERVICE" >/dev/null 2>&1
+        fi
 
-    if [[ ! -f "$RATHOLE_WATCH_LOG_ROTATE_FILE" ]]; then
-        tee "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null <<EOF
+        echo "Установка скрипта аварийного перезапуска Rathole..."
+
+        RATHOLE_WATCH_SH="rathole-client-watch.sh"
+
+        if [[ ! -f "$SYSTEM_BIN_DIR/$RATHOLE_WATCH_SH" ]]; then
+            if [[ -f "$RATHOLE_WATCH_SH" ]]; then
+                chmod +x "$RATHOLE_WATCH_SH"
+                cp "$RATHOLE_WATCH_SH" "$SYSTEM_BIN_DIR/"
+                rm -f "$RATHOLE_WATCH_SH"
+            else
+                echo "ОШИБКА! Скрипт аварийного перезапуска Rathole ($RATHOLE_WATCH_SH) не найден в текущей папке! Настройка будет прервана"
+                exit 1
+            fi
+        else
+            echo "Скрипт аварийного перезапуска Rathole уже установлен!"
+        fi
+
+        echo "Настройка ротации логов скрипта аварийного перезапуска Rathole..."
+
+        RATHOLE_WATCH_LOG_FILE="/var/log/rathole-client-watch.log"
+        RATHOLE_WATCH_LOG_ROTATE_FILE="/etc/logrotate.d/rathole-client-watch"
+
+        if [[ ! -f "$RATHOLE_WATCH_LOG_ROTATE_FILE" ]]; then
+            tee "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null <<EOF
 ${RATHOLE_WATCH_LOG_FILE} {
     weekly
     rotate 4
@@ -775,19 +799,20 @@ ${RATHOLE_WATCH_LOG_FILE} {
 }
 EOF
 
-        chmod 644 "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null
-    else
-        echo "Ротация логов скрипта аварийного перезапуска Rathole уже настроена!"
+            chmod 644 "$RATHOLE_WATCH_LOG_ROTATE_FILE" >/dev/null
+        else
+            echo "Ротация логов скрипта аварийного перезапуска Rathole уже настроена!"
+        fi
     fi
 
     echo "Установка скрипта обновлений Happ Proxy..."
 
     HAPP_URGRADE_SH="upgrade-happ.sh"
 
-    if [[ ! -f "/root/$HAPP_URGRADE_SH" ]]; then
+    if [[ ! -f "$SYSTEM_BIN_DIR/$HAPP_URGRADE_SH" ]]; then
         if [[ -f "$HAPP_URGRADE_SH" ]]; then
             chmod +x "$HAPP_URGRADE_SH"
-            cp "$HAPP_URGRADE_SH" /root/
+            cp "$HAPP_URGRADE_SH" "$SYSTEM_BIN_DIR/"
             rm -f "$HAPP_URGRADE_SH"
         else
             echo "ОШИБКА! Скрипт обновлений Happ Proxy ($HAPP_URGRADE_SH) не найден в текущей папке! Настройка будет прервана"
@@ -839,20 +864,22 @@ EOF
         echo "Ротация логов скрипта обновлений Happ Proxy уже настроена!"
     fi
 
-    echo "Настройка периодического запуска (раз в 15 минут) скрипта аварийного перезапуска Rathole..."
+    if [[ "$NEED_RATHOLE" == "true" ]]; then
+        echo "Настройка периодического запуска (раз в 15 минут) скрипта аварийного перезапуска Rathole..."
 
-    CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+        CURRENT_CRON=$(crontab -l 2>/dev/null || true)
 
-    if [[ -z "$CURRENT_CRON" ]]; then
-        CURRENT_CRON=$(EDITOR=cat crontab -e 2>/dev/null || true)
-    fi
+        if [[ -z "$CURRENT_CRON" ]]; then
+            CURRENT_CRON=$(EDITOR=cat crontab -e 2>/dev/null || true)
+        fi
 
-    RATHOLE_WATCH_CRON_JOB="*/15 * *    * * /root/$RATHOLE_WATCH_SH --config $RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE >/dev/null 2>&1"
+        RATHOLE_WATCH_CRON_JOB="*/15 * *    * * $SYSTEM_BIN_DIR/$RATHOLE_WATCH_SH --config $RATHOLE_CONFIG_DIR/$RATHOLE_CONFIG_FILE >/dev/null 2>&1"
 
-    if echo "$CURRENT_CRON" | grep -Fq "$RATHOLE_WATCH_CRON_JOB"; then
-        echo "Периодический запуск скрипта аварийного перезапуска Rathole уже настроен!"
-    else
-        { echo "$CURRENT_CRON"; echo "$RATHOLE_WATCH_CRON_JOB"; } | crontab - >/dev/null
+        if echo "$CURRENT_CRON" | grep -Fq "$RATHOLE_WATCH_CRON_JOB"; then
+            echo "Периодический запуск скрипта аварийного перезапуска Rathole уже настроен!"
+        else
+            { echo "$CURRENT_CRON"; echo "$RATHOLE_WATCH_CRON_JOB"; } | crontab - >/dev/null
+        fi
     fi
 
     echo "Настройка периодического запуска скрипта обновлений Happ Proxy раз в 2 недели..."
@@ -863,7 +890,7 @@ EOF
         CURRENT_CRON=$(EDITOR=cat crontab -e 2>/dev/null || true)
     fi
 
-    HAPP_UPGRADE_CRON_JOB="0    4 1,15 * * /root/$HAPP_URGRADE_SH >> $HAPP_URGRADE_LOG_FILE 2>&1"
+    HAPP_UPGRADE_CRON_JOB="0    4 1,15 * * $SYSTEM_BIN_DIR/$HAPP_URGRADE_SH >> $HAPP_URGRADE_LOG_FILE 2>&1"
 
     if echo "$CURRENT_CRON" | grep -Fq "$HAPP_UPGRADE_CRON_JOB"; then
         echo "Периодический запуск скрипта обновлений Happ Proxy раз в 2 недели уже настроен!"
