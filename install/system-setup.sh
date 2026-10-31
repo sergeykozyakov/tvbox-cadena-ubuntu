@@ -10,7 +10,7 @@ SYSTEM_BIN_DIR="/usr/local/bin"
 NO_RATHOLE_HOST="9.9.9.9"
 
 # Параметры системы по умолчанию
-DEF_HOSTNAME="cadena"
+DEF_HOSTNAME="amlogic"
 DEF_TIMEZONE="Europe/Moscow"
 DEF_SWAP_SIZE="4G"
 
@@ -18,7 +18,7 @@ DEF_SWAP_SIZE="4G"
 DEF_CLIENT_GATEWAY="192.168.0.1"
 
 # Значения точки доступа (Hotspot) по умолчанию
-DEF_HOTSPOT_SSID="cadena-ap"
+DEF_HOTSPOT_SSID="amlogic-ap"
 DEF_HOTSPOT_PASS="MySecretPassword"
 
 # Настройки Rathole по умолчанию
@@ -84,7 +84,7 @@ if [[ ! -f "$STAGE_FILE" ]]; then
 
     clear
     echo "========================================================================="
-    echo "                Настройка системы CADENA Hub Ubuntu                      "
+    echo "                Настройка системы Amlogic Ubuntu                         "
     echo "========================================================================="
     echo ""
     echo "=== [ЭТАП 1] Первоначальная настройка ==="
@@ -298,7 +298,7 @@ source "$STAGE_FILE"
 if [[ "$STAGE" == "2" ]]; then
     clear
     echo "========================================================================="
-    echo "                Настройка системы CADENA Hub Ubuntu                      "
+    echo "                Настройка системы Amlogic Ubuntu                         "
     echo "========================================================================="
     echo ""
     echo "=== [ЭТАП 2] Продолжение настройки системы ==="
@@ -940,7 +940,7 @@ EOF
     echo "Настройка баннера на этапе ввода логина интерфейса SSH..."
 
     UNAUTH_SSH_BANNER="/etc/issue.net"
-    UNAUTH_SSH_GREETING="Welcome to CADENA Ubuntu Server"
+    UNAUTH_SSH_GREETING="Welcome to Amlogic Ubuntu Server"
 
     if grep -q "$UNAUTH_SSH_GREETING" "$UNAUTH_SSH_BANNER" 2>/dev/null; then
         echo "Баннер на этапе ввода логина интерфейса SSH уже настроен!"

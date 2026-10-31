@@ -1,5 +1,5 @@
-# tvbox-cadena-ubuntu
-Ubuntu-based Wi-Fi Access Point settings scripts (xray gateway) for CADENA PRO X tv-boxes (ru-RU)
+# tvbox-amlogc-ubuntu
+Ubuntu-based Wi-Fi Access Point settings scripts (xray gateway) for Amlogic tv-boxes (ru-RU)
 
 ## Source Ubuntu distrib
 Based on https://github.com/devmfc/debian-on-amlogic
